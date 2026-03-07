@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CS2 Inventory Manager</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <!-- Status banner -->
+  <div id="status-banner" class="status-banner hidden"></div>
+
+  <!-- Toast container -->
+  <div id="toasts" class="toast-container"></div>
+
+  <!-- Login view -->
+  <div id="view-login" class="view">
+    <div class="login-container">
+      <div class="login-header">
+        <div class="login-logo">&#9881;</div>
+        <h1>CS2 Inventory Manager</h1>
+        <p class="login-subtitle">Connect your Steam account to manage your inventory</p>
+      </div>
+
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="qr">QR Code</button>
+        <button class="tab-btn" data-tab="credentials">Username / Password</button>
+        <button class="tab-btn" data-tab="token">Browser Token</button>
+      </div>
+
+      <!-- QR tab -->
+      <div id="tab-qr" class="tab-panel active">
+        <p class="tab-desc">Scan with the <strong>Steam mobile app</strong> to log in without entering your password.</p>
+        <div class="qr-area">
+          <img id="qr-image" src="" alt="QR Code" class="hidden" />
+          <div id="qr-placeholder" class="qr-placeholder">
+            <button id="btn-load-qr" class="btn btn-primary">Generate QR Code</button>
+          </div>
+          <p id="qr-status-text" class="qr-status"></p>
+        </div>
+        <button id="btn-refresh-qr" class="btn btn-secondary hidden">Refresh QR Code</button>
+      </div>
+
+      <!-- Credentials tab -->
+      <div id="tab-credentials" class="tab-panel hidden">
+        <form id="form-credentials">
+          <div class="field">
+            <label for="input-username">Steam Username</label>
+            <input id="input-username" type="text" autocomplete="username" placeholder="Your Steam account name" required />
+          </div>
+          <div class="field">
+            <label for="input-password">Password</label>
+            <input id="input-password" type="password" autocomplete="current-password" placeholder="Password" required />
+          </div>
+          <button type="submit" class="btn btn-primary btn-full" id="btn-credential-login">Sign In</button>
+        </form>
+
+        <div id="guard-section" class="hidden">
+          <p id="guard-desc" class="guard-desc"></p>
+          <form id="form-guard">
+            <div class="field">
+              <label for="input-guard">Steam Guard Code</label>
+              <input id="input-guard" type="text" maxlength="10" autocomplete="one-time-code" placeholder="Enter code" required />
+            </div>
+            <button type="submit" class="btn btn-primary btn-full">Submit Code</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Token tab -->
+      <div id="tab-token" class="tab-panel hidden">
+        <ol class="token-steps">
+          <li>Open your browser and make sure you're logged into Steam.</li>
+          <li>Visit <a href="#" id="token-link" target="_blank" rel="noopener">steamcommunity.com/chat/clientjstoken</a></li>
+          <li>Copy the <code>token</code> value from the JSON response.</li>
+          <li>Paste it below along with your Steam ID 64.</li>
+        </ol>
+        <form id="form-token">
+          <div class="field">
+            <label for="input-token">Token</label>
+            <input id="input-token" type="text" placeholder="Paste token here" required />
+          </div>
+          <div class="field">
+            <label for="input-steamid">Steam ID 64</label>
+            <input id="input-steamid" type="text" placeholder="76561198..." required />
+          </div>
+          <button type="submit" class="btn btn-primary btn-full">Connect</button>
+        </form>
+      </div>
+
+      <p id="login-error" class="login-error hidden"></p>
+    </div>
+  </div>
+
+  <!-- Inventory view -->
+  <div id="view-inventory" class="view hidden">
+    <header class="app-header">
+      <span class="header-logo">&#9881; CS2 Inventory</span>
+      <div class="header-user">
+        <span id="header-username"></span>
+        <span id="gc-indicator" class="gc-dot connected" title="Connected to Game Coordinator"></span>
+        <button id="btn-logout" class="btn btn-ghost">Logout</button>
+      </div>
+    </header>
+
+    <div class="inventory-layout">
+      <!-- Sidebar: storage units -->
+      <aside class="sidebar">
+        <h2 class="sidebar-title">Storage Units</h2>
+        <div id="storage-unit-list" class="storage-unit-list">
+          <p class="empty-msg">No storage units found.</p>
+        </div>
+      </aside>
+
+      <!-- Main: inventory grid -->
+      <main class="inventory-main">
+        <div class="toolbar">
+          <input id="search-input" type="search" placeholder="Search items..." class="search-input" />
+          <select id="filter-type" class="select">
+            <option value="">All Types</option>
+            <option value="Rifle">Rifle</option>
+            <option value="Pistol">Pistol</option>
+            <option value="SMG">SMG</option>
+            <option value="Shotgun">Shotgun</option>
+            <option value="Sniper Rifle">Sniper Rifle</option>
+            <option value="Machine Gun">Machine Gun</option>
+            <option value="Knife">Knife</option>
+            <option value="Gloves">Gloves</option>
+            <option value="Agent">Agent</option>
+            <option value="Sticker">Sticker</option>
+            <option value="Case">Case</option>
+            <option value="Key">Key</option>
+            <option value="Graffiti">Graffiti</option>
+            <option value="Music Kit">Music Kit</option>
+          </select>
+          <select id="filter-rarity" class="select">
+            <option value="">All Rarities</option>
+            <option value="Consumer Grade">Consumer</option>
+            <option value="Industrial Grade">Industrial</option>
+            <option value="Mil-Spec Grade">Mil-Spec</option>
+            <option value="Restricted">Restricted</option>
+            <option value="Classified">Classified</option>
+            <option value="Covert">Covert</option>
+            <option value="Extraordinary">Extraordinary</option>
+          </select>
+          <select id="sort-by" class="select">
+            <option value="name">Sort: Name</option>
+            <option value="rarity">Sort: Rarity</option>
+            <option value="float">Sort: Float</option>
+          </select>
+          <button id="btn-refresh-inv" class="btn btn-secondary">&#8635; Refresh</button>
+        </div>
+
+        <div id="inventory-count" class="inventory-count"></div>
+        <div id="inventory-grid" class="inventory-grid">
+          <div class="loading-msg">Loading inventory...</div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Casket panel (full-screen overlay) -->
+  <div id="casket-panel" class="casket-panel hidden">
+    <div class="casket-header">
+      <div class="casket-title-row">
+        <h2 id="casket-name">Storage Unit</h2>
+        <span id="casket-count" class="casket-count"></span>
+      </div>
+      <button id="btn-close-casket" class="btn btn-ghost">&#10005; Close</button>
+    </div>
+
+    <div class="casket-body">
+      <!-- Left: main inventory -->
+      <div class="casket-col">
+        <h3 class="col-title">Inventory <span class="col-hint">(click to move in)</span></h3>
+        <input id="casket-inv-search" type="search" placeholder="Search..." class="search-input search-sm" />
+        <div id="casket-inv-grid" class="inventory-grid inv-col-grid"></div>
+      </div>
+
+      <!-- Right: casket contents -->
+      <div class="casket-col">
+        <h3 class="col-title">Storage Unit <span class="col-hint">(click to move out)</span></h3>
+        <input id="casket-contents-search" type="search" placeholder="Search..." class="search-input search-sm" />
+        <div id="casket-contents-grid" class="inventory-grid inv-col-grid">
+          <div class="loading-msg">Loading contents...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirmation modal -->
+  <div id="confirm-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <p id="confirm-msg"></p>
+      <div class="modal-actions">
+        <button id="btn-confirm-yes" class="btn btn-primary">Confirm</button>
+        <button id="btn-confirm-no" class="btn btn-ghost">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
