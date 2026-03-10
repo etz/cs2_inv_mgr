@@ -142,9 +142,13 @@ async function fetchCommunityInventory(steamUser, webCookies) {
 
     if (webCookies) {
       proceed(webCookies);
-    } else {
+    } else if (steamUser._refreshToken) {
       steamUser.once('webSession', (sessionId, cookies) => proceed(cookies));
       steamUser.webLogOn();
+    } else {
+      // webLogonToken auth — no refresh token available, so webLogOn() can't be called.
+      // Resolve with an empty map; GC data will still be returned without community metadata.
+      resolve(new Map());
     }
   });
 }

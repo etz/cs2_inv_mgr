@@ -219,10 +219,8 @@ class SteamClient {
   startTokenLogin(token, steamId, accountName) {
     this.steamId = steamId;
     this.steamUser.logOn({ accountName, steamID: steamId, webLogonToken: token });
-    // webSession won't auto-fire with webLogonToken; call webLogOn after loggedOn
-    this.steamUser.once('loggedOn', () => {
-      this.steamUser.webLogOn();
-    });
+    // webLogOn() requires a refresh token which webLogonToken auth doesn't provide;
+    // webSession may still fire automatically — the handler above saves the cookies.
     return this._waitForGC();
   }
 
