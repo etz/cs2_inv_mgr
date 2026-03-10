@@ -1,4 +1,7 @@
-const path = require('path');
+const { decodeGcItemAttributes } = require('../utils/gcItemDecoder');
+
+const STAT_TRAK_LABEL = 'StatTrak\u2122';
+const STAR_PREFIX = '\u2605';
 
 const TRADE_UP_RARITIES = new Set([
   'Consumer Grade',
@@ -16,9 +19,11 @@ const TRADE_UP_CATEGORIES = new Set([
   'Sniper Rifle',
   'Machinegun',
   'Submachine Gun',
+  'Machine Gun',
 ]);
 
 const STORAGE_UNIT_DEF_INDEX = 1201;
+const GENERIC_CHARM_NAMES = new Set(['Charm', 'Keychain']);
 
 function createSchemaResolver(schema) {
   if (!schema) {
@@ -27,28 +32,55 @@ function createSchemaResolver(schema) {
 
   function formatItem(gcItem, options = {}) {
     const inventoryById = options.inventoryById ?? new Map();
+    const assetDescriptionById = options.assetDescriptionById ?? new Map();
+    const keychainDescriptionByName = options.keychainDescriptionByName ?? new Map();
+    const stickerDescriptionByName = options.stickerDescriptionByName ?? new Map();
+    const assetDescription = assetDescriptionById.get(String(gcItem.id)) ?? null;
+    const decoded = decodeGcItemAttributes(gcItem);
     const definition = schema.definitionsByDefIndex[String(gcItem.def_index)] ?? null;
     const paintIndex = normaliseNumber(gcItem.paint_index);
     const variantKey = paintIndex != null ? `[${paintIndex}]${gcItem.def_index}` : null;
     const variant = variantKey ? schema.variantsByKey[variantKey] ?? null : null;
     const paint = paintIndex != null ? schema.paintsByIndex[String(paintIndex)] ?? null : null;
+    const standaloneKeychain = decoded.standaloneKeychainId != null
+      ? schema.keychainDefinitionsById[String(decoded.standaloneKeychainId)] ?? null
+      : null;
     const qualityValue = normaliseNumberish(gcItem.quality ?? definition?.qualityValue);
     const quality = qualityValue != null ? schema.qualitiesByValue[String(qualityValue)] ?? null : null;
-    const rarityValue = normaliseNumberish(gcItem.rarity ?? variant?.rarityValue ?? definition?.rarityValue);
+    const display = resolveDisplayMetadata({
+      definition,
+      variant,
+      standaloneKeychain,
+      assetDescription,
+      keychainDescriptionByName,
+    });
+    const rarityValue = normaliseNumberish(gcItem.rarity ?? display.rarityValue ?? variant?.rarityValue ?? definition?.rarityValue);
     const rarity = rarityValue != null ? schema.raritiesByValue[String(rarityValue)] ?? null : null;
     const wear = resolveWearBand(schema, gcItem.paint_wear);
     const isSouvenir = quality?.localizedName === 'Souvenir';
     const trackedKills = gcItem.kill_eater_value ?? null;
-    const isStattrak = trackedKills != null || quality?.localizedName === 'StatTrak™';
-    const itemUrl = variant?.itemUrl ?? definition?.itemUrl ?? null;
-    const localizedName = variant?.localizedName ?? definition?.localizedName ?? `Item #${gcItem.def_index}`;
-    const itemPhaseName = variant?.itemPhaseName ?? paint?.phaseName ?? null;
-    const category = definition?.category ?? null;
-    const stickers = resolveStickers(schema, gcItem.stickers ?? []);
+    const isStattrak = trackedKills != null || quality?.localizedName === STAT_TRAK_LABEL;
+    const localizedQuality = quality?.localizedName ?? definition?.localizedQuality ?? null;
+    const category = display.category ?? definition?.category ?? null;
+    const stickers = resolveStickers(schema, gcItem.stickers ?? [], stickerDescriptionByName);
+    const keychains = resolveKeychains(schema, decoded.attachedKeychains, keychainDescriptionByName);
     const casketId = gcItem.casket_id ? String(gcItem.casket_id) : null;
     const casketName = casketId ? resolveCasketName(schema, inventoryById, casketId) : null;
-    const localizedQuality = quality?.localizedName ?? definition?.localizedQuality ?? null;
-    const marketHashName = buildMarketHashName({
+    const fallbackRarityName = pickRarityName(rarity, category, variant?.rarityName ?? definition?.rarityName);
+    const rarityName = display.rarityName
+      ?? resolveDescriptionRarityName(assetDescription)
+      ?? fallbackRarityName;
+    const rarityColor = display.rarityColor
+      ?? variant?.rarityColor
+      ?? definition?.rarityColor
+      ?? resolveDescriptionRarityColor(assetDescription)
+      ?? rarity?.color
+      ?? '#b0c3d9';
+    const localizedName = display.localizedName
+      ?? resolvePaintedLocalizedName(definition, variant, paint)
+      ?? assetDescription?.localizedName
+      ?? `Item #${gcItem.def_index}`;
+    const marketHashName = display.marketHashName ?? assetDescription?.marketHashName ?? buildMarketHashName({
       localizedName,
       localizedQuality,
       isSouvenir,
@@ -56,9 +88,13 @@ function createSchemaResolver(schema) {
       category,
       wearLabel: wear?.localizedName ?? null,
     });
-    const rarityName = pickRarityName(rarity, category, variant?.rarityName ?? definition?.rarityName);
-    const rarityColor = variant?.rarityColor ?? definition?.rarityColor ?? rarity?.color ?? '#b0c3d9';
-    const item = {
+    const itemUrl = display.itemUrl
+      ?? variant?.itemUrl
+      ?? definition?.itemUrl
+      ?? assetDescription?.itemUrl
+      ?? null;
+
+    return {
       id: String(gcItem.id),
       marketHashName,
       localizedName,
@@ -74,17 +110,17 @@ function createSchemaResolver(schema) {
       category,
       casketId,
       unlockTime: gcItem.tradable_after instanceof Date ? gcItem.tradable_after.toISOString() : null,
-      escrowTime: null,
+      escrowTime: decoded.escrowTime,
       isOnMarket: null,
       itemWearName: wear?.key ?? null,
       itemWearNameLocalized: wear?.localizedName ?? null,
       casketName,
-      itemPhaseName,
+      itemPhaseName: variant?.itemPhaseName ?? paint?.phaseName ?? null,
       isUnclaimedReward: null,
-      isRental: null,
+      isRental: decoded.isRental,
       casketContainsCount: gcItem.casket_contained_item_count ?? 0,
-      hasKeychain: null,
-      keychainSeed: null,
+      hasKeychain: keychains.length > 0,
+      keychainSeed: keychains[0]?.seed ?? decoded.standaloneKeychainSeed ?? null,
       itemDetails: {
         defIndex: gcItem.def_index,
         paintIndex,
@@ -93,18 +129,30 @@ function createSchemaResolver(schema) {
         originValue: normaliseNumberish(gcItem.origin),
         originalId: gcItem.original_id ? String(gcItem.original_id) : null,
         equippedState: gcItem.equipped_state ?? [],
+        standaloneKeychainId: decoded.standaloneKeychainId,
+        standaloneKeychainName: standaloneKeychain?.localizedName ?? null,
+        standaloneKeychainItemUrl: standaloneKeychain?.itemUrl
+          ?? (standaloneKeychain?.localizedName
+            ? keychainDescriptionByName.get(standaloneKeychain.localizedName)?.itemUrl ?? null
+            : null)
+          ?? assetDescription?.itemUrl
+          ?? null,
+        standaloneKeychainSeed: decoded.standaloneKeychainSeed,
+        standaloneKeychainSourceAttribute: decoded.standaloneSourceAttribute,
+        attachedKeychainCount: keychains.length,
       },
       rarityColor,
       localizedQuality,
       settings: null,
-      item_name: definition?.item_name ?? null,
+      item_name: display.item_name ?? definition?.item_name ?? null,
       qan: null,
       customName: gcItem.custom_name ?? null,
       paintSeed: normaliseNumberish(gcItem.paint_seed),
       paintWear: gcItem.paint_wear != null ? Number(gcItem.paint_wear.toFixed(8)) : null,
       trackedKills,
       stickers,
-      highlightReelLink: null,
+      keychains,
+      highlightReelLink: keychains[0]?.highlightReel ?? decoded.standaloneHighlightReel ?? null,
       isSouvenir,
       name: marketHashName,
       imageUrl: itemUrl,
@@ -118,8 +166,6 @@ function createSchemaResolver(schema) {
       casketItemCount: gcItem.casket_contained_item_count ?? 0,
       isStorageUnit: gcItem.def_index === STORAGE_UNIT_DEF_INDEX,
     };
-
-    return item;
   }
 
   function formatStorageUnit(gcItem, options = {}) {
@@ -143,6 +189,104 @@ function createSchemaResolver(schema) {
   };
 }
 
+function resolveDisplayMetadata({
+  definition,
+  variant,
+  standaloneKeychain,
+  assetDescription,
+  keychainDescriptionByName,
+}) {
+  if (standaloneKeychain && definition?.category === 'Charm') {
+    const localizedName = buildStandaloneKeychainName(definition, standaloneKeychain);
+    const fallbackKeychainDescription = keychainDescriptionByName.get(standaloneKeychain.localizedName) ?? null;
+    return {
+      localizedName,
+      marketHashName: localizedName,
+      itemUrl: standaloneKeychain.itemUrl
+        ?? assetDescription?.itemUrl
+        ?? fallbackKeychainDescription?.itemUrl
+        ?? definition?.itemUrl
+        ?? null,
+      rarityValue: standaloneKeychain.rarityValue ?? definition?.rarityValue ?? null,
+      rarityName: standaloneKeychain.rarityName
+        ?? fallbackKeychainDescription?.rarityName
+        ?? definition?.rarityName
+        ?? null,
+      rarityColor: standaloneKeychain.rarityColor
+        ?? fallbackKeychainDescription?.rarityColor
+        ?? definition?.rarityColor
+        ?? null,
+      category: definition.category,
+      item_name: standaloneKeychain.item_name ?? definition?.item_name ?? null,
+    };
+  }
+
+  if (definition?.category === 'Charm' && assetDescription?.marketHashName && isGenericCharmName(definition.localizedName)) {
+    const localizedName = assetDescription.localizedName ?? assetDescription.marketName ?? assetDescription.marketHashName;
+    return {
+      localizedName,
+      marketHashName: assetDescription.marketHashName ?? localizedName,
+      itemUrl: assetDescription.itemUrl ?? definition?.itemUrl ?? null,
+      rarityValue: variant?.rarityValue ?? definition?.rarityValue ?? null,
+      rarityName: resolveDescriptionRarityName(assetDescription) ?? variant?.rarityName ?? definition?.rarityName ?? null,
+      rarityColor: resolveDescriptionRarityColor(assetDescription) ?? variant?.rarityColor ?? definition?.rarityColor ?? null,
+      category: definition.category,
+      item_name: definition?.item_name ?? null,
+    };
+  }
+
+  return {
+    localizedName: variant?.localizedName ?? null,
+    marketHashName: null,
+    itemUrl: variant?.itemUrl ?? definition?.itemUrl ?? null,
+    rarityValue: variant?.rarityValue ?? definition?.rarityValue ?? null,
+    rarityName: variant?.rarityName ?? definition?.rarityName ?? null,
+    rarityColor: variant?.rarityColor ?? definition?.rarityColor ?? null,
+    category: definition?.category ?? null,
+    item_name: definition?.item_name ?? null,
+  };
+}
+
+function buildStandaloneKeychainName(definition, keychainDefinition) {
+  return `Charm | ${keychainDefinition.localizedName}`;
+}
+
+function resolvePaintedLocalizedName(definition, variant, paint) {
+  if (variant?.localizedName) {
+    return variant.localizedName;
+  }
+
+  if (definition?.localizedName && paint?.localizedName) {
+    return `${definition.localizedName} | ${paint.localizedName}`;
+  }
+
+  return definition?.localizedName ?? null;
+}
+
+function isGenericCharmName(name) {
+  if (!name) {
+    return false;
+  }
+
+  return GENERIC_CHARM_NAMES.has(String(name).trim());
+}
+
+function resolveDescriptionRarityName(assetDescription) {
+  return findDescriptionTag(assetDescription, 'Rarity')?.name ?? null;
+}
+
+function resolveDescriptionRarityColor(assetDescription) {
+  return findDescriptionTag(assetDescription, 'Rarity')?.color ?? null;
+}
+
+function findDescriptionTag(assetDescription, categoryName) {
+  if (!assetDescription?.tags) {
+    return null;
+  }
+
+  return assetDescription.tags.find((tag) => tag.category_name === categoryName) ?? null;
+}
+
 function resolveWearBand(schema, paintWear) {
   if (paintWear == null) {
     return null;
@@ -156,15 +300,15 @@ function buildMarketHashName({ localizedName, localizedQuality, isSouvenir, isSt
   const prefixes = [];
 
   if (isStattrak) {
-    prefixes.push('StatTrak™');
+    prefixes.push(STAT_TRAK_LABEL);
   }
   if (hasStarPrefix(category)) {
-    prefixes.push('★');
+    prefixes.push(STAR_PREFIX);
   }
   if (isSouvenir) {
     prefixes.push('Souvenir');
-  } else if (!isStattrak && localizedQuality === '★') {
-    prefixes.push('★');
+  } else if (!isStattrak && localizedQuality === STAR_PREFIX) {
+    prefixes.push(STAR_PREFIX);
   }
 
   const prefix = prefixes.length ? `${prefixes.join(' ')} ` : '';
@@ -205,10 +349,13 @@ function isEquipped(equippedState, expectedClass) {
   return (equippedState ?? []).some((entry) => Number(entry.new_class) === expectedClass);
 }
 
-function resolveStickers(schema, stickers) {
+function resolveStickers(schema, stickers, stickerDescriptionByName = new Map()) {
   return stickers.map((sticker) => {
     const stickerId = String(sticker.sticker_id);
     const metadata = schema.stickerKitsById[stickerId] ?? null;
+    const fallbackMetadata = metadata?.localizedName
+      ? stickerDescriptionByName.get(metadata.localizedName) ?? null
+      : null;
 
     return {
       slot: sticker.slot ?? null,
@@ -220,7 +367,33 @@ function resolveStickers(schema, stickers) {
       offsetY: sticker.offset_y ?? null,
       localizedName: metadata?.localizedName ?? null,
       item_name: metadata?.item_name ?? null,
-      itemUrl: metadata?.itemUrl ?? null,
+      itemUrl: metadata?.itemUrl ?? fallbackMetadata?.itemUrl ?? null,
+      rarityName: metadata?.rarityName ?? fallbackMetadata?.rarityName ?? null,
+      rarityColor: metadata?.rarityColor ?? fallbackMetadata?.rarityColor ?? null,
+    };
+  });
+}
+
+function resolveKeychains(schema, keychains, keychainDescriptionByName = new Map()) {
+  return keychains.map((keychain) => {
+    const metadata = schema.keychainDefinitionsById[String(keychain.keychainId)] ?? null;
+    const fallbackMetadata = metadata?.localizedName
+      ? keychainDescriptionByName.get(metadata.localizedName) ?? null
+      : null;
+
+    return {
+      slot: keychain.slot ?? null,
+      keychainId: keychain.keychainId ?? null,
+      seed: keychain.seed ?? null,
+      offsetX: keychain.offsetX ?? null,
+      offsetY: keychain.offsetY ?? null,
+      offsetZ: keychain.offsetZ ?? null,
+      highlightReel: keychain.highlightReel ?? null,
+      localizedName: metadata?.localizedName ?? null,
+      item_name: metadata?.item_name ?? null,
+      itemUrl: metadata?.itemUrl ?? fallbackMetadata?.itemUrl ?? null,
+      rarityName: metadata?.rarityName ?? fallbackMetadata?.rarityName ?? null,
+      rarityColor: metadata?.rarityColor ?? fallbackMetadata?.rarityColor ?? null,
     };
   });
 }

@@ -3,12 +3,12 @@ const { createSchemaResolver, STORAGE_UNIT_DEF_INDEX } = require('../schema/reso
 
 const resolver = createSchemaResolver(schema);
 
-function formatItem(gcItem, inventoryById) {
-  return resolver.formatItem(gcItem, { inventoryById });
+function formatItem(gcItem, options = {}) {
+  return resolver.formatItem(gcItem, options);
 }
 
-function formatStorageUnit(gcItem, inventoryById) {
-  return resolver.formatStorageUnit(gcItem, { inventoryById });
+function formatStorageUnit(gcItem, options = {}) {
+  return resolver.formatStorageUnit(gcItem, options);
 }
 
 module.exports = {

@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { initLoginForm } from './components/loginForm.js';
 import { renderInventoryGrid, filterAndSort, renderItems } from './components/inventoryGrid.js';
 import { openCasketPanel, closeCasketPanel } from './components/casketPanel.js';
+import { initItemDetailsModal, openItemDetails } from './components/itemDetailsModal.js';
 
 // ── State ────────────────────────────────────────────────────────────────────
 
@@ -85,7 +86,7 @@ async function loadInventory() {
 
 function applyFilters() {
   const filtered = filterAndSort(state.inventory, state.filters);
-  renderItems(filtered, '#inventory-grid');
+  renderItems(filtered, '#inventory-grid', openItemDetails);
   updateCount(filtered.length);
 }
 
@@ -163,6 +164,8 @@ window.__qrAuthSuccess = onLoginSuccess;
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 async function init() {
+  initItemDetailsModal();
+
   // Filter/sort listeners
   document.getElementById('search-input').addEventListener('input', (e) => {
     state.filters.search = e.target.value;

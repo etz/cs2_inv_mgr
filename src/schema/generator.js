@@ -236,28 +236,40 @@ function buildPaints(itemsGame, tokens, raritiesByKey) {
   return paints;
 }
 
-function buildStickerKits(itemsGame, tokens, cdnMap) {
+function buildStickerKits(itemsGame, tokens, cdnMap, raritiesByKey, imagePathIndex) {
   const stickerKits = {};
 
   for (const [stickerId, stickerData] of Object.entries(itemsGame.sticker_kits ?? {})) {
+    const imageInventory = stickerData.image_inventory ?? null;
+    const stickerMaterial = stickerData.sticker_material ?? null;
+    const rarity = raritiesByKey[stickerData.item_rarity ?? ''] ?? null;
+    if (imageInventory) {
+      imagePathIndex[imageInventory] = imageInventory;
+    }
+
     stickerKits[stickerId] = {
       stickerId,
       item_name: stickerData.name,
       localizedName: resolveToken(tokens, stickerData.item_name)
         ?? resolveToken(tokens, stickerData.description_string)
         ?? titleCase(stickerData.name),
+      rarityValue: rarity?.value ?? null,
+      rarityName: rarity?.weaponName ?? rarity?.nonweaponName ?? null,
+      rarityColor: rarity?.color ?? null,
+      stickerMaterial,
       itemUrl: resolveItemUrl(cdnMap, {
         name: stickerData.name,
         image_inventory: stickerData.image_inventory,
-      }),
+      }, imagePathIndex),
     };
   }
 
   return stickerKits;
 }
 
-function buildDefinitions(itemsGame, tokens, cdnMap, qualitiesByKey, raritiesByKey) {
+function buildDefinitions(itemsGame, tokens, cdnMap, qualitiesByKey, raritiesByKey, imagePathIndex) {
   const definitions = {};
+  const renderKeysByDefIndex = {};
   const prefabCache = new Map();
   const prefabs = itemsGame.prefabs ?? {};
 
@@ -266,6 +278,11 @@ function buildDefinitions(itemsGame, tokens, cdnMap, qualitiesByKey, raritiesByK
     const categoryToken = findTopLevelValue(prefabs, itemData, 'item_type_name', prefabCache);
     const quality = qualitiesByKey[merged.item_quality ?? itemData.item_quality ?? ''] ?? null;
     const rarity = raritiesByKey[merged.item_rarity ?? itemData.item_rarity ?? ''] ?? null;
+    const renderKeys = buildRenderKeys(itemData, merged);
+
+    if (merged.image_inventory) {
+      imagePathIndex[merged.image_inventory] = merged.image_inventory;
+    }
 
     definitions[defIndex] = {
       defIndex,
@@ -277,21 +294,51 @@ function buildDefinitions(itemsGame, tokens, cdnMap, qualitiesByKey, raritiesByK
       rarityValue: rarity?.value ?? null,
       rarityName: rarity?.weaponName ?? rarity?.nonweaponName ?? null,
       rarityColor: rarity?.color ?? null,
-      itemUrl: resolveItemUrl(cdnMap, merged),
+      itemUrl: resolveItemUrl(cdnMap, merged, imagePathIndex),
       paintable: Boolean(merged.paint_data),
       image_inventory: merged.image_inventory ?? null,
+      renderKeys,
     };
+
+    renderKeysByDefIndex[defIndex] = renderKeys;
   }
 
-  return definitions;
+  return {
+    definitions,
+    renderKeysByDefIndex,
+  };
 }
 
-function resolveItemUrl(cdnMap, itemData) {
-  const candidates = [];
+function buildRenderKeys(itemData, merged) {
+  const keys = new Set();
+  const imageInventory = merged.image_inventory ?? itemData.image_inventory ?? null;
+  const paintMaterial = merged.paint_data?.PaintableMaterial0?.Name
+    ?? merged.paint_data?.paintablematerial0?.Name
+    ?? null;
 
-  if (itemData?.image_inventory) {
-    candidates.push(itemData.image_inventory);
-    candidates.push(path.posix.basename(itemData.image_inventory));
+  for (const candidate of [
+    paintMaterial,
+    itemData.name,
+    merged.name,
+    imageInventory,
+    imageInventory ? path.posix.basename(imageInventory) : null,
+    merged.item_class,
+  ]) {
+    if (candidate) {
+      keys.add(candidate);
+    }
+  }
+
+  return [...keys];
+}
+
+function resolveItemUrl(cdnMap, itemData, imagePathIndex = {}) {
+  const candidates = [];
+  const imageInventory = itemData?.image_inventory ?? null;
+
+  if (imageInventory) {
+    candidates.push(imageInventory);
+    candidates.push(path.posix.basename(imageInventory));
   }
 
   if (itemData?.name) {
@@ -311,17 +358,26 @@ function resolveItemUrl(cdnMap, itemData) {
   return null;
 }
 
-function buildVariants(definitions, paints, cdnMap) {
+function buildVariants(definitions, renderKeysByDefIndex, paints, cdnMap) {
   const variants = {};
 
   for (const definition of Object.values(definitions)) {
-    if (!definition.paintable || !definition.item_name) {
+    const renderKeys = renderKeysByDefIndex[definition.defIndex] ?? definition.renderKeys ?? [];
+    if (!renderKeys.length) {
       continue;
     }
 
     for (const paint of Object.values(paints)) {
-      const variantKey = `${definition.item_name}_${paint.item_name}`;
-      const itemUrl = cdnMap[variantKey];
+      let itemUrl = null;
+
+      for (const renderKey of renderKeys) {
+        const candidate = `${renderKey}_${paint.item_name}`;
+        if (cdnMap[candidate]) {
+          itemUrl = cdnMap[candidate];
+          break;
+        }
+      }
+
       if (!itemUrl) {
         continue;
       }
@@ -342,28 +398,88 @@ function buildVariants(definitions, paints, cdnMap) {
   return variants;
 }
 
+function buildKeychainDefinitions(itemsGame, tokens, raritiesByKey, cdnMap, imagePathIndex) {
+  const keychainDefinitions = {};
+
+  for (const [keychainId, keychainData] of Object.entries(itemsGame.keychain_definitions ?? {})) {
+    const imageInventory = keychainData.image_inventory ?? null;
+    const rarity = raritiesByKey[keychainData.item_rarity ?? ''] ?? null;
+    if (imageInventory) {
+      imagePathIndex[imageInventory] = imageInventory;
+    }
+
+    keychainDefinitions[keychainId] = {
+      keychainId,
+      item_name: keychainData.name,
+      localizedName: resolveToken(tokens, keychainData.loc_name)
+        ?? resolveToken(tokens, keychainData.item_name)
+        ?? titleCase(keychainData.name),
+      localizedDescription: resolveToken(tokens, keychainData.loc_description) ?? null,
+      rarityValue: rarity?.value ?? null,
+      rarityName: rarity?.weaponName ?? rarity?.nonweaponName ?? null,
+      rarityColor: rarity?.color ?? null,
+      image_inventory: imageInventory,
+      itemUrl: resolveItemUrl(cdnMap, {
+        name: keychainData.name,
+        image_inventory: keychainData.image_inventory,
+      }, imagePathIndex),
+      pedestalModel: keychainData.pedestal_display_model ?? null,
+    };
+  }
+
+  return keychainDefinitions;
+}
+
+function buildAttributeDefinitions(itemsGame, tokens) {
+  const attributeDefs = {};
+
+  for (const [attributeId, attributeData] of Object.entries(itemsGame.attributes ?? {})) {
+    attributeDefs[attributeId] = {
+      attributeId,
+      name: attributeData.name ?? null,
+      attributeClass: attributeData.attribute_class ?? null,
+      descriptionString: attributeData.description_string ?? null,
+      localizedDescription: resolveToken(tokens, attributeData.description_string) ?? null,
+      storedAsInteger: attributeData['stored_as_integer'] === '1',
+      hidden: attributeData.hidden === '1',
+    };
+  }
+
+  return attributeDefs;
+}
+
 function buildSchema({ itemsGameText, csgoEnglishText, itemsCdnText }) {
   const itemsGame = parseVdf(itemsGameText).items_game;
   const csgoEnglish = parseVdf(csgoEnglishText).lang;
   const tokens = csgoEnglish.Tokens ?? {};
   const cdnMap = parseCdn(itemsCdnText);
+  const imagePathIndex = {};
   const qualities = buildQualities(itemsGame, tokens);
   const rarities = buildRarities(itemsGame, tokens);
   const paints = buildPaints(itemsGame, tokens, rarities.byKey);
-  const definitions = buildDefinitions(itemsGame, tokens, cdnMap, qualities.byKey, rarities.byKey);
-  const variants = buildVariants(definitions, paints, cdnMap);
-  const stickerKits = buildStickerKits(itemsGame, tokens, cdnMap);
+  const attributeDefs = buildAttributeDefinitions(itemsGame, tokens);
+  const {
+    definitions,
+    renderKeysByDefIndex,
+  } = buildDefinitions(itemsGame, tokens, cdnMap, qualities.byKey, rarities.byKey, imagePathIndex);
+  const variants = buildVariants(definitions, renderKeysByDefIndex, paints, cdnMap);
+  const stickerKits = buildStickerKits(itemsGame, tokens, cdnMap, rarities.byKey, imagePathIndex);
+  const keychainDefinitions = buildKeychainDefinitions(itemsGame, tokens, rarities.byKey, cdnMap, imagePathIndex);
 
   return {
     generatedAt: new Date().toISOString(),
     wearBands: WEAR_BANDS,
     phaseNames: PHASE_NAMES,
+    imagePathIndex,
+    attributeDefsById: attributeDefs,
     qualitiesByValue: qualities.byValue,
     raritiesByValue: rarities.byValue,
     definitionsByDefIndex: definitions,
+    renderKeysByDefIndex,
     paintsByIndex: paints,
     variantsByKey: variants,
     stickerKitsById: stickerKits,
+    keychainDefinitionsById: keychainDefinitions,
   };
 }
 

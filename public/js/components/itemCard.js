@@ -4,7 +4,6 @@ export function createItemCard(item, onClick) {
   card.dataset.id = item.id;
   card.style.borderLeftColor = item.rarityColor || '#b0c3d9';
 
-  // Image
   if (item.imageUrl) {
     const img = document.createElement('img');
     img.src = item.imageUrl;
@@ -18,13 +17,12 @@ export function createItemCard(item, onClick) {
     card.appendChild(placeholder());
   }
 
-  // Info
   const info = document.createElement('div');
   info.className = 'item-info';
 
   const name = document.createElement('span');
   name.className = 'item-name';
-  name.textContent = item.customName ? `★ ${item.customName}` : item.name;
+  name.textContent = item.customName || item.name;
   name.title = item.name;
   info.appendChild(name);
 
@@ -44,7 +42,6 @@ export function createItemCard(item, onClick) {
 
   card.appendChild(info);
 
-  // Badges
   const badges = document.createElement('div');
   badges.className = 'item-badges';
   if (item.statTrak != null) {
@@ -54,14 +51,21 @@ export function createItemCard(item, onClick) {
     badges.appendChild(badge('SV', 'badge-souvenir'));
   }
   if (item.customName) {
-    badges.appendChild(badge('✎', 'badge-nametag'));
+    badges.appendChild(badge('NT', 'badge-nametag'));
   }
   if (item.inCasket) {
     badges.appendChild(badge('SU', 'badge-storage-unit'));
   }
-  if (badges.children.length) card.appendChild(badges);
+  if (item.hasKeychain) {
+    badges.appendChild(badge('KC', 'badge-keychain'));
+  }
+  if (badges.children.length) {
+    card.appendChild(badges);
+  }
 
-  if (onClick) card.addEventListener('click', () => onClick(item));
+  if (onClick) {
+    card.addEventListener('click', () => onClick(item));
+  }
 
   return card;
 }
@@ -87,6 +91,6 @@ function badge(text, cls) {
 function placeholder() {
   const el = document.createElement('div');
   el.className = 'item-img-placeholder';
-  el.textContent = '🔫';
+  el.textContent = '?';
   return el;
 }
