@@ -34,22 +34,24 @@ function formatItem(gcItem, communityItem) {
   const typeTag = getTag(tags, 'Type');
   const weaponTag = getTag(tags, 'Weapon');
 
-  const rarityName = rarityTag?.localized_tag_name ?? null;
+  const rarityName = rarityTag?.name ?? null;
   const rarityColor = rarityName ? (RARITY_COLORS[rarityName] ?? '#b0c3d9') : '#b0c3d9';
 
   const iconUrl = communityItem?.icon_url;
   const imageUrl = iconUrl ? `${IMAGE_BASE}${iconUrl}` : null;
 
+  const fallbackName = communityItem?.market_hash_name ?? `Item #${gcItem.def_index}`;
+
   return {
     id: gcItem.id.toString(),
     defIndex: gcItem.def_index,
-    name: communityItem?.market_hash_name ?? `Item #${gcItem.def_index}`,
+    name: fallbackName,
     imageUrl,
     rarity: rarityName,
     rarityColor,
-    type: typeTag?.localized_tag_name ?? null,
-    weapon: weaponTag?.localized_tag_name ?? null,
-    exterior: exteriorTag?.localized_tag_name ?? null,
+    type: typeTag?.name ?? null,
+    weapon: weaponTag?.name ?? null,
+    exterior: exteriorTag?.name ?? null,
     customName: gcItem.custom_name ?? null,
     paintWear: gcItem.paint_wear != null ? Number(gcItem.paint_wear.toFixed(8)) : null,
     paintSeed: gcItem.paint_seed ?? null,
