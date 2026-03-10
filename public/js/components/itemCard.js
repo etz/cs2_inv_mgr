@@ -56,6 +56,9 @@ export function createItemCard(item, onClick) {
   if (item.customName) {
     badges.appendChild(badge('✎', 'badge-nametag'));
   }
+  if (item.inCasket) {
+    badges.appendChild(badge('SU', 'badge-storage-unit'));
+  }
   if (badges.children.length) card.appendChild(badges);
 
   if (onClick) card.addEventListener('click', () => onClick(item));

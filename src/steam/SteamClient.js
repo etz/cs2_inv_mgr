@@ -28,6 +28,11 @@ class SteamClient {
     // Web session (for community inventory)
     this._webCookies = null;
 
+    // Steam Web API access token (JWT from steam-session, used for
+    // IEconService endpoints that return the full inventory including
+    // trade-holded items — only available for QR/credential logins)
+    this._accessToken = null;
+
     this._setupEventHandlers();
   }
 
@@ -123,6 +128,7 @@ class SteamClient {
     session.on('authenticated', async () => {
       this._qrStatus = 'authenticated';
       this.username = session.accountName;
+      this._accessToken = session.accessToken ?? null; // save for IEconService calls
       try {
         await this._completeLoginWithRefreshToken(session.refreshToken, session.accountName);
       } catch (err) {
@@ -188,6 +194,7 @@ class SteamClient {
 
     // No guard needed — complete immediately
     this.username = username;
+    this._accessToken = session.accessToken ?? null; // save for IEconService calls
     await this._completeLoginWithRefreshToken(session.refreshToken, username);
     return { success: true, steamId: this.steamId, username: this.username };
   }
@@ -197,6 +204,7 @@ class SteamClient {
     await this._credSession.submitSteamGuardCode(code);
     const refreshToken = this._credSession.refreshToken;
     const username = this._credSession.accountName;
+    this._accessToken = this._credSession.accessToken ?? null; // save for IEconService calls
     this._credSession = null;
     return this._completeLoginWithRefreshToken(refreshToken, username);
   }
@@ -231,6 +239,7 @@ class SteamClient {
     this.username = null;
     this._qrStatus = 'idle';
     this._webCookies = null;
+    this._accessToken = null;
   }
 }
 

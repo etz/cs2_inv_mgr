@@ -255,9 +255,10 @@ a:hover { text-decoration: underline; }
   font-size: 9px; font-weight: 700; padding: 1px 4px; border-radius: 2px;
   letter-spacing: 0.3px;
 }
-.badge-stattrak { background: #cf6a32; color: #fff; }
-.badge-souvenir  { background: #ffd700; color: #000; }
-.badge-nametag   { background: var(--accent); color: #000; }
+.badge-stattrak     { background: #cf6a32; color: #fff; }
+.badge-souvenir     { background: #ffd700; color: #000; }
+.badge-nametag      { background: var(--accent); color: #000; }
+.badge-storage-unit { background: #4a5568; color: #cbd5e0; }
 
 .loading-msg { color: var(--text-muted); font-size: 13px; padding: 24px; grid-column: 1/-1; }
 
@@ -265,7 +266,12 @@ a:hover { text-decoration: underline; }
 .casket-panel {
   position: fixed; inset: 0; z-index: 500;
   background: var(--bg-primary);
-  display: flex; flex-direction: column;
+  /* Grid layout: header takes its natural height; body gets the rest.
+     Using grid-template-rows instead of flex so the 1fr track is explicitly
+     bounded by the viewport — flex children of a fixed element can fail to
+     constrain height in some browsers. */
+  display: grid;
+  grid-template-rows: auto 1fr;
 }
 .casket-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -274,12 +280,17 @@ a:hover { text-decoration: underline; }
 .casket-title-row { display: flex; align-items: baseline; gap: 12px; }
 .casket-title-row h2 { font-size: 18px; color: var(--text-primary); }
 .casket-count { font-size: 13px; color: var(--text-muted); }
-.casket-body { display: flex; flex: 1; overflow: hidden; }
-.casket-col { flex: 1; display: flex; flex-direction: column; padding: 16px; overflow: hidden; border-right: 1px solid var(--border); }
+/* casket-body sits in the 1fr grid row so its height is explicitly the
+   remaining viewport height. overflow:hidden + height:100% ensures the flex
+   children cannot push it taller than the grid track. */
+.casket-body { display: flex; height: 100%; overflow: hidden; }
+.casket-col { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 16px; overflow: hidden; border-right: 1px solid var(--border); }
 .casket-col:last-child { border-right: none; }
-.col-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+.col-title { flex-shrink: 0; font-size: 14px; font-weight: 600; margin-bottom: 10px; }
 .col-title .col-hint { font-size: 11px; color: var(--text-muted); font-weight: 400; }
-.inv-col-grid { overflow-y: auto; flex: 1; }
+/* min-height:0 is the critical flexbox scroll fix: without it the item's
+   minimum size is min-content (full grid height) and overflow-y never fires. */
+.inv-col-grid { overflow-y: auto; flex: 1; min-height: 0; }
 
 /* ── Modal ───────────────────────────────────────────────────────────────── */
 .modal-overlay {

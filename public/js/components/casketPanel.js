@@ -16,8 +16,9 @@ export function openCasketPanel(casket, allInventoryItems) {
   // Show panel
   document.getElementById('casket-panel').classList.remove('hidden');
 
-  // Render inventory side
-  renderInvSide(inventoryItems);
+  // Render inventory side — exclude items already inside any storage unit
+  // (can't move an item from one storage unit directly to another via the GC API)
+  renderInvSide(inventoryItems.filter(i => !i.inCasket));
 
   // Load casket contents
   document.getElementById('casket-contents-grid').innerHTML = '<div class="loading-msg">Loading contents...</div>';
@@ -29,7 +30,11 @@ export function openCasketPanel(casket, allInventoryItems) {
 
   document.getElementById('casket-inv-search').oninput = (e) => {
     const q = e.target.value.toLowerCase();
-    renderInvSide(inventoryItems.filter(i => i.name.toLowerCase().includes(q) || (i.customName?.toLowerCase().includes(q))));
+    renderInvSide(
+      inventoryItems
+        .filter(i => !i.inCasket)
+        .filter(i => i.name.toLowerCase().includes(q) || (i.customName?.toLowerCase().includes(q)))
+    );
   };
 
   document.getElementById('casket-contents-search').oninput = (e) => {
