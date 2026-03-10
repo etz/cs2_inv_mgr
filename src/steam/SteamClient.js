@@ -12,26 +12,13 @@ class SteamClient {
     this.steamId = null;
     this.username = null;
 
-    // QR login state
     this._qrSession = null;
-    this._qrStatus = 'idle'; // 'idle' | 'waiting' | 'scanned' | 'authenticated' | 'error'
+    this._qrStatus = 'idle';
     this._qrError = null;
-
-    // Credential login state
     this._credSession = null;
-
-    // GC connection promise resolver
     this._gcResolve = null;
     this._gcReject = null;
     this._gcTimeout = null;
-
-    // Web session (for community inventory)
-    this._webCookies = null;
-
-    // Steam Web API access token (JWT from steam-session, used for
-    // IEconService endpoints that return the full inventory including
-    // trade-holded items — only available for QR/credential logins)
-    this._accessToken = null;
 
     this._setupEventHandlers();
   }
@@ -42,10 +29,6 @@ class SteamClient {
       this.steamId = this.steamUser.steamID.getSteamID64();
       this.steamUser.setPersona(SteamUser.EPersonaState.Online);
       this.steamUser.gamesPlayed([730]);
-    });
-
-    this.steamUser.on('webSession', (sessionId, cookies) => {
-      this._webCookies = cookies;
     });
 
     this.steamUser.on('error', (err) => {
@@ -79,13 +62,13 @@ class SteamClient {
     this.csgo.on('itemRemoved', () => {});
   }
 
-  // ── Common GC connection wait ──────────────────────────────────────────────
-
   _waitForGC(timeoutMs = 45000) {
     return new Promise((resolve, reject) => {
       if (this.isConnectedToGC) {
-        return resolve({ success: true, steamId: this.steamId, username: this.username });
+        resolve({ success: true, steamId: this.steamId, username: this.username });
+        return;
       }
+
       this._gcResolve = resolve;
       this._gcReject = reject;
       this._gcTimeout = setTimeout(() => {
@@ -99,17 +82,10 @@ class SteamClient {
   _completeLoginWithRefreshToken(refreshToken, username) {
     this.username = username || null;
     this.steamUser.logOn({ refreshToken });
-    // Request web session for community inventory
-    this.steamUser.once('loggedOn', () => {
-      this.steamUser.webLogOn();
-    });
     return this._waitForGC();
   }
 
-  // ── Method 1: QR Code ─────────────────────────────────────────────────────
-
   async startQRLogin() {
-    // Clean up any existing session
     if (this._qrSession) {
       this._qrSession.cancelLoginAttempt();
       this._qrSession = null;
@@ -128,7 +104,6 @@ class SteamClient {
     session.on('authenticated', async () => {
       this._qrStatus = 'authenticated';
       this.username = session.accountName;
-      this._accessToken = session.accessToken ?? null; // save for IEconService calls
       try {
         await this._completeLoginWithRefreshToken(session.refreshToken, session.accountName);
       } catch (err) {
@@ -170,8 +145,6 @@ class SteamClient {
     };
   }
 
-  // ── Method 2: Username/Password + Steam Guard ──────────────────────────────
-
   async startCredentialLogin(username, password) {
     if (this._credSession) {
       this._credSession.cancelLoginAttempt();
@@ -192,57 +165,52 @@ class SteamClient {
       };
     }
 
-    // No guard needed — complete immediately
     this.username = username;
-    this._accessToken = session.accessToken ?? null; // save for IEconService calls
     await this._completeLoginWithRefreshToken(session.refreshToken, username);
     return { success: true, steamId: this.steamId, username: this.username };
   }
 
   async submitGuardCode(code) {
-    if (!this._credSession) throw new Error('No active login session');
+    if (!this._credSession) {
+      throw new Error('No active login session');
+    }
+
     const session = this._credSession;
     await new Promise((resolve, reject) => {
       session.once('authenticated', resolve);
       session.once('error', reject);
       session.submitSteamGuardCode(code).catch(reject);
     });
+
     const refreshToken = session.refreshToken;
     const username = session.accountName;
-    this._accessToken = session.accessToken ?? null; // save for IEconService calls
     this._credSession = null;
     return this._completeLoginWithRefreshToken(refreshToken, username);
   }
 
-  // ── Method 3: Browser Token ────────────────────────────────────────────────
-
   startTokenLogin(token, steamId, accountName) {
     this.steamId = steamId;
     this.steamUser.logOn({ accountName, steamID: steamId, webLogonToken: token });
-    // webLogOn() requires a refresh token which webLogonToken auth doesn't provide;
-    // webSession may still fire automatically — the handler above saves the cookies.
     return this._waitForGC();
   }
-
-  // ── Logout ─────────────────────────────────────────────────────────────────
 
   logout() {
     if (this._qrSession) {
       this._qrSession.cancelLoginAttempt();
       this._qrSession = null;
     }
+
     if (this._credSession) {
       this._credSession.cancelLoginAttempt();
       this._credSession = null;
     }
+
     this.steamUser.logOff();
     this.isLoggedIn = false;
     this.isConnectedToGC = false;
     this.steamId = null;
     this.username = null;
     this._qrStatus = 'idle';
-    this._webCookies = null;
-    this._accessToken = null;
   }
 }
 

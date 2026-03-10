@@ -50,7 +50,7 @@ export function createItemCard(item, onClick) {
   if (item.statTrak != null) {
     badges.appendChild(badge('ST', 'badge-stattrak'));
   }
-  if (item.name?.startsWith('Souvenir')) {
+  if (item.isSouvenir || item.localizedQuality === 'Souvenir') {
     badges.appendChild(badge('SV', 'badge-souvenir'));
   }
   if (item.customName) {

@@ -76,15 +76,14 @@ async function getCasketContents(steamClient, casketId) {
   );
   if (!casket) throw new Error('Storage unit not found in inventory');
 
-  // Items inside storage units ARE present in the Steam Community inventory
-  // (they're still economy items; the casket relationship is a GC-layer concept).
-  // Use the cached community map from the last inventory fetch.
-  const communityMap = steamClient._communityMap ?? new Map();
+  const inventoryById = new Map(
+    (csgo.inventory ?? []).map((item) => [String(item.id), item])
+  );
 
   return new Promise((resolve, reject) => {
     csgo.getCasketContents(casket.id, (err, items) => {
       if (err) return reject(err);
-      resolve(items.map(item => formatItem(item, communityMap.get(item.id.toString()) ?? null)));
+      resolve(items.map((item) => formatItem(item, inventoryById)));
     });
   });
 }
