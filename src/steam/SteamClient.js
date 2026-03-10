@@ -201,10 +201,15 @@ class SteamClient {
 
   async submitGuardCode(code) {
     if (!this._credSession) throw new Error('No active login session');
-    await this._credSession.submitSteamGuardCode(code);
-    const refreshToken = this._credSession.refreshToken;
-    const username = this._credSession.accountName;
-    this._accessToken = this._credSession.accessToken ?? null; // save for IEconService calls
+    const session = this._credSession;
+    await new Promise((resolve, reject) => {
+      session.once('authenticated', resolve);
+      session.once('error', reject);
+      session.submitSteamGuardCode(code).catch(reject);
+    });
+    const refreshToken = session.refreshToken;
+    const username = session.accountName;
+    this._accessToken = session.accessToken ?? null; // save for IEconService calls
     this._credSession = null;
     return this._completeLoginWithRefreshToken(refreshToken, username);
   }
