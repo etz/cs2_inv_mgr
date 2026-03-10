@@ -105,6 +105,7 @@ async function startQRLogin() {
   const refreshBtn = document.getElementById('btn-refresh-qr');
 
   img.classList.add('hidden');
+  placeholder.classList.remove('hidden');
   placeholder.innerHTML = '<span style="color:var(--text-muted);font-size:13px">Generating...</span>';
   refreshBtn.classList.add('hidden');
   statusText.textContent = '';
@@ -115,6 +116,7 @@ async function startQRLogin() {
     const { qrDataUrl } = await api.auth.startQR();
     img.src = qrDataUrl;
     img.classList.remove('hidden');
+    placeholder.classList.add('hidden');
     placeholder.innerHTML = '';
     statusText.textContent = 'Open Steam → tap your account icon → sign in via QR code';
 
@@ -139,6 +141,7 @@ async function startQRLogin() {
       } catch (_) {}
     }, 2000);
   } catch (err) {
+    placeholder.classList.remove('hidden');
     placeholder.innerHTML = '<span style="color:var(--danger);font-size:13px">Failed to generate QR code</span>';
     showError(err.message);
   }
