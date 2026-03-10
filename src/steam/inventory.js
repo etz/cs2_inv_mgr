@@ -121,7 +121,7 @@ async function fetchCommunityInventory(steamUser, webCookies) {
     const community = new SteamCommunity();
 
     const proceed = (cookies) => {
-      community.setCookies(cookies);
+      if (cookies) community.setCookies(cookies);
       community.getUserInventoryContents(
         steamUser.steamID,
         CS2_APP_ID,
@@ -146,9 +146,9 @@ async function fetchCommunityInventory(steamUser, webCookies) {
       steamUser.once('webSession', (sessionId, cookies) => proceed(cookies));
       steamUser.webLogOn();
     } else {
-      // webLogonToken auth — no refresh token available, so webLogOn() can't be called.
-      // Resolve with an empty map; GC data will still be returned without community metadata.
-      resolve(new Map());
+      // webLogonToken auth — no refresh token, so webLogOn() can't be called.
+      // getUserInventoryContents hits a public endpoint; proceed without cookies.
+      proceed(null);
     }
   });
 }
