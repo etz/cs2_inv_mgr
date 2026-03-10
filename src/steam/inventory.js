@@ -121,7 +121,7 @@ async function fetchCommunityInventory(steamUser, webCookies) {
     const community = new SteamCommunity();
 
     const proceed = (cookies) => {
-      community.setCookies(cookies);
+      if (cookies) community.setCookies(cookies);
       community.getUserInventoryContents(
         steamUser.steamID,
         CS2_APP_ID,
@@ -142,9 +142,13 @@ async function fetchCommunityInventory(steamUser, webCookies) {
 
     if (webCookies) {
       proceed(webCookies);
-    } else {
+    } else if (steamUser._refreshToken) {
       steamUser.once('webSession', (sessionId, cookies) => proceed(cookies));
       steamUser.webLogOn();
+    } else {
+      // webLogonToken auth — no refresh token, so webLogOn() can't be called.
+      // getUserInventoryContents hits a public endpoint; proceed without cookies.
+      proceed(null);
     }
   });
 }

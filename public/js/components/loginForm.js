@@ -69,13 +69,25 @@ export function initLoginForm(onSuccess) {
   // Token login
   document.getElementById('form-token').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const token   = document.getElementById('input-token').value.trim();
-    const steamId = document.getElementById('input-steamid').value.trim();
     const btn = e.target.querySelector('button[type=submit]');
     setLoading(btn, true);
     clearError();
+    let parsed;
     try {
-      const result = await api.auth.token(token, steamId);
+      parsed = JSON.parse(document.getElementById('input-token-json').value.trim());
+    } catch {
+      showError('Invalid JSON — paste the full response from steamcommunity.com/chat/clientjstoken');
+      setLoading(btn, false);
+      return;
+    }
+    const { token, steamid: steamId, account_name: accountName } = parsed;
+    if (!token || !steamId || !accountName) {
+      showError('JSON is missing token, steamid, or account_name');
+      setLoading(btn, false);
+      return;
+    }
+    try {
+      const result = await api.auth.token(token, steamId, accountName);
       onSuccess(result);
     } catch (err) {
       showError(err.message);

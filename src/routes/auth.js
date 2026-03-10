@@ -70,12 +70,12 @@ router.get('/qr/status', (req, res) => {
 // POST /api/auth/token  — browser token login
 router.post('/token', loginLimiter, async (req, res, next) => {
   try {
-    const { token, steamId } = req.body;
-    if (!token || !steamId) {
-      return res.status(400).json({ error: 'token and steamId are required' });
+    const { token, steamId, accountName } = req.body;
+    if (!token || !steamId || !accountName) {
+      return res.status(400).json({ error: 'token, steamId and accountName are required' });
     }
     const client = req.app.locals.steamClient;
-    const result = await client.startTokenLogin(token, steamId);
+    const result = await client.startTokenLogin(token, steamId, accountName);
     res.json(result);
   } catch (err) {
     next(err);

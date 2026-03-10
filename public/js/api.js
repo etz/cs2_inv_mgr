@@ -17,7 +17,7 @@ export const api = {
     steamGuard: (code)         => request('POST', '/api/auth/steam-guard', { code }),
     startQR:    ()             => request('POST', '/api/auth/qr'),
     qrStatus:   ()             => request('GET',  '/api/auth/qr/status'),
-    token:      (token, id)    => request('POST', '/api/auth/token',       { token, steamId: id }),
+    token:      (token, id, name) => request('POST', '/api/auth/token',     { token, steamId: id, accountName: name }),
     logout:     ()             => request('POST', '/api/auth/logout'),
   },
   inventory: {

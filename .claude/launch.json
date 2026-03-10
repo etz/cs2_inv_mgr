@@ -3,12 +3,15 @@
   "configurations": [
     {
       "name": "dev",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
       "runtimeExecutable": "node",
       "runtimeArgs": ["--watch", "src/server.js"],
       "port": 3000
     },
     {
       "name": "start",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start"],
       "runtimeExecutable": "node",
       "runtimeArgs": ["src/server.js"],
       "port": 3000

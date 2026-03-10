@@ -72,17 +72,12 @@
         <ol class="token-steps">
           <li>Open your browser and make sure you're logged into Steam.</li>
           <li>Visit <a href="#" id="token-link" target="_blank" rel="noopener">steamcommunity.com/chat/clientjstoken</a></li>
-          <li>Copy the <code>token</code> value from the JSON response.</li>
-          <li>Paste it below along with your Steam ID 64.</li>
+          <li>Copy the entire JSON response and paste it below.</li>
         </ol>
         <form id="form-token">
           <div class="field">
-            <label for="input-token">Token</label>
-            <input id="input-token" type="text" placeholder="Paste token here" required />
-          </div>
-          <div class="field">
-            <label for="input-steamid">Steam ID 64</label>
-            <input id="input-steamid" type="text" placeholder="76561198..." required />
+            <label for="input-token-json">JSON Response</label>
+            <textarea id="input-token-json" rows="4" placeholder='{"logged_in":true,"steamid":"...","account_name":"...","token":"..."}' required></textarea>
           </div>
           <button type="submit" class="btn btn-primary btn-full">Connect</button>
         </form>
