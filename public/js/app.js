@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { initLoginForm } from './components/loginForm.js';
 import { renderInventoryGrid, filterAndSort, renderItems } from './components/inventoryGrid.js';
 import { openCasketPanel, closeCasketPanel } from './components/casketPanel.js';
+import { openArmoryPanel, closeArmoryPanel } from './components/armoryPanel.js';
 import { initItemDetailsModal, openItemDetails } from './components/itemDetailsModal.js';
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -103,6 +104,10 @@ function onOpenCasket(su) {
   openCasketPanel(su, [...state.inventory]);
 }
 
+function onArmoryRedeemed() {
+  loadInventory();
+}
+
 // Callbacks from casketPanel.js
 window.__casketMoved = (itemId, direction, item) => {
   if (direction === 'add') {
@@ -184,6 +189,9 @@ async function init() {
     applyFilters();
   });
   document.getElementById('btn-refresh-inv').addEventListener('click', loadInventory);
+  document.getElementById('btn-open-armory').addEventListener('click', () => {
+    openArmoryPanel({ onRedeemed: onArmoryRedeemed });
+  });
 
   // Logout
   document.getElementById('btn-logout').addEventListener('click', async () => {
@@ -192,6 +200,7 @@ async function init() {
     state.user = null;
     state.inventory = [];
     state.storageUnits = [];
+    closeArmoryPanel();
     showView('login');
     setBanner(null);
   });
@@ -202,6 +211,7 @@ async function init() {
     // Deselect storage unit card
     document.querySelectorAll('.storage-unit-card').forEach(c => c.classList.remove('active'));
   });
+  document.getElementById('btn-close-armory').addEventListener('click', closeArmoryPanel);
 
   // Init login form
   initLoginForm(onLoginSuccess);

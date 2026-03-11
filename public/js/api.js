@@ -28,4 +28,9 @@ export const api = {
     add:      (casketId, itemId) => request('POST', `/api/caskets/${casketId}/add`,    { itemId }),
     remove:   (casketId, itemId) => request('POST', `/api/caskets/${casketId}/remove`, { itemId }),
   },
+  armory: {
+    state:       () => request('GET', '/api/armory/state'),
+    collections: () => request('GET', '/api/armory/collections'),
+    redeem:      (data) => request('POST', '/api/armory/redeem', data),
+  },
 };
