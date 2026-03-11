@@ -90,9 +90,17 @@ function createSchemaResolver(schema) {
     });
     const itemUrl = display.itemUrl
       ?? variant?.itemUrl
-      ?? definition?.itemUrl
       ?? assetDescription?.itemUrl
+      ?? definition?.itemUrl
       ?? null;
+    const definitionMetadata = buildDefinitionMetadata(definition);
+    const quantityValue = normaliseNumberish(gcItem.quantity);
+    const levelValue = normaliseNumberish(gcItem.level);
+    const flagsValue = normaliseNumberish(gcItem.flags);
+    const styleValue = normaliseNumberish(gcItem.style);
+    const positionValue = normaliseNumberish(gcItem.position);
+    const killEaterScoreTypeValue = normaliseNumberish(gcItem.kill_eater_score_type);
+    const questIdValue = normaliseNumberish(gcItem.quest_id);
 
     return {
       id: String(gcItem.id),
@@ -119,6 +127,15 @@ function createSchemaResolver(schema) {
       isUnclaimedReward: null,
       isRental: decoded.isRental,
       casketContainsCount: gcItem.casket_contained_item_count ?? 0,
+      quantity: quantityValue,
+      level: levelValue,
+      flags: flagsValue,
+      inUse: gcItem.in_use ?? null,
+      style: styleValue,
+      customDescription: gcItem.custom_desc ?? null,
+      inventoryPosition: positionValue,
+      killEaterScoreType: killEaterScoreTypeValue,
+      questId: questIdValue,
       hasKeychain: keychains.length > 0,
       keychainSeed: keychains[0]?.seed ?? decoded.standaloneKeychainSeed ?? null,
       itemDetails: {
@@ -140,6 +157,18 @@ function createSchemaResolver(schema) {
         standaloneKeychainSeed: decoded.standaloneKeychainSeed,
         standaloneKeychainSourceAttribute: decoded.standaloneSourceAttribute,
         attachedKeychainCount: keychains.length,
+        quantity: quantityValue,
+        level: levelValue,
+        flags: flagsValue,
+        inUse: gcItem.in_use ?? null,
+        style: styleValue,
+        customDescription: gcItem.custom_desc ?? null,
+        position: positionValue,
+        killEaterScoreType: killEaterScoreTypeValue,
+        questId: questIdValue,
+        inventoryValue: normaliseNumberish(gcItem.inventory),
+        interiorItemId: gcItem.interior_item?.id ? String(gcItem.interior_item.id) : null,
+        definition: definitionMetadata,
       },
       rarityColor,
       localizedQuality,
@@ -165,6 +194,7 @@ function createSchemaResolver(schema) {
       inCasket: casketId,
       casketItemCount: gcItem.casket_contained_item_count ?? 0,
       isStorageUnit: gcItem.def_index === STORAGE_UNIT_DEF_INDEX,
+      definitionMetadata,
     };
   }
 
@@ -238,7 +268,7 @@ function resolveDisplayMetadata({
   return {
     localizedName: variant?.localizedName ?? null,
     marketHashName: null,
-    itemUrl: variant?.itemUrl ?? definition?.itemUrl ?? null,
+    itemUrl: variant?.itemUrl ?? null,
     rarityValue: variant?.rarityValue ?? definition?.rarityValue ?? null,
     rarityName: variant?.rarityName ?? definition?.rarityName ?? null,
     rarityColor: variant?.rarityColor ?? definition?.rarityColor ?? null,
@@ -363,6 +393,7 @@ function resolveStickers(schema, stickers, stickerDescriptionByName = new Map())
       wear: sticker.wear ?? 0,
       scale: sticker.scale ?? null,
       rotation: sticker.rotation ?? null,
+      tintId: sticker.tint_id ?? null,
       offsetX: sticker.offset_x ?? null,
       offsetY: sticker.offset_y ?? null,
       localizedName: metadata?.localizedName ?? null,
@@ -370,6 +401,10 @@ function resolveStickers(schema, stickers, stickerDescriptionByName = new Map())
       itemUrl: metadata?.itemUrl ?? fallbackMetadata?.itemUrl ?? null,
       rarityName: metadata?.rarityName ?? fallbackMetadata?.rarityName ?? null,
       rarityColor: metadata?.rarityColor ?? fallbackMetadata?.rarityColor ?? null,
+      tournamentEventId: metadata?.tournamentEventId ?? null,
+      tournamentTeamId: metadata?.tournamentTeamId ?? null,
+      tournamentPlayerId: metadata?.tournamentPlayerId ?? null,
+      patchMaterial: metadata?.patchMaterial ?? null,
     };
   });
 }
@@ -394,8 +429,36 @@ function resolveKeychains(schema, keychains, keychainDescriptionByName = new Map
       itemUrl: metadata?.itemUrl ?? fallbackMetadata?.itemUrl ?? null,
       rarityName: metadata?.rarityName ?? fallbackMetadata?.rarityName ?? null,
       rarityColor: metadata?.rarityColor ?? fallbackMetadata?.rarityColor ?? null,
+      displaySeed: metadata?.displaySeed ?? null,
+      keychainMaterial: metadata?.keychainMaterial ?? null,
+      qualityValue: metadata?.qualityValue ?? null,
+      localizedQuality: metadata?.localizedQuality ?? null,
+      isCommodity: metadata?.isCommodity ?? null,
     };
   });
+}
+
+function buildDefinitionMetadata(definition) {
+  if (!definition) {
+    return null;
+  }
+
+  return {
+    prefab: definition.prefab ?? null,
+    itemType: definition.itemType ?? null,
+    itemClass: definition.itemClass ?? null,
+    itemDescription: definition.itemDescription ?? null,
+    lootListName: definition.lootListName ?? null,
+    supplyCrateSeries: definition.supplyCrateSeries ?? null,
+    canOpenForRental: definition.canOpenForRental ?? null,
+    volatileContainer: definition.volatileContainer ?? null,
+    invContainerAndTools: definition.invContainerAndTools ?? null,
+    toolType: definition.toolType ?? null,
+    firstSaleDate: definition.firstSaleDate ?? null,
+    imageInventoryVolatile: definition.image_inventory_volatile ?? null,
+    modelPlayer: definition.modelPlayer ?? null,
+    itemSetTag: definition.itemSetTag ?? null,
+  };
 }
 
 function resolveCasketName(schema, inventoryById, casketId) {

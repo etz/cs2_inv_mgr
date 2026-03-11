@@ -113,50 +113,162 @@ function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-function normalisePrefabKey(prefab) {
+function splitPrefabKeys(prefab) {
   if (!prefab) {
-    return null;
+    return [];
   }
 
-  if (prefab.includes(' ') && prefab.startsWith('valve ')) {
-    return prefab.split(' ')[1];
+  const keys = String(prefab)
+    .split(/\s+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (!keys.length) {
+    return [];
   }
 
-  if (prefab.includes(' ')) {
-    return prefab.split(' ')[0];
+  if (keys[0] === 'valve') {
+    return keys.slice(1);
   }
 
-  return prefab;
+  return keys;
 }
 
-function resolvePrefabChain(prefabs, itemData, cache, seen = new Set()) {
-  if (!itemData?.prefab) {
-    return { ...itemData };
-  }
-
-  const prefabKey = normalisePrefabKey(itemData.prefab);
+function resolvePrefabDefinition(prefabs, prefabKey, cache, seen = new Set()) {
   if (!prefabKey || seen.has(prefabKey)) {
-    return { ...itemData };
+    return {};
   }
 
   if (cache.has(prefabKey)) {
-    return deepMerge(cache.get(prefabKey), itemData);
+    return cache.get(prefabKey);
   }
 
   const prefab = prefabs[prefabKey];
   if (!prefab) {
-    return { ...itemData };
+    return {};
   }
 
   seen.add(prefabKey);
-  const resolved = resolvePrefabChain(prefabs, prefab, cache, seen);
-  cache.set(prefabKey, resolved);
-  return deepMerge(resolved, itemData);
+  let merged = {};
+  for (const parentKey of splitPrefabKeys(prefab.prefab)) {
+    merged = deepMerge(merged, resolvePrefabDefinition(prefabs, parentKey, cache, seen));
+  }
+
+  merged = deepMerge(merged, prefab);
+  cache.set(prefabKey, merged);
+  return merged;
+}
+
+function resolvePrefabChain(prefabs, itemData, cache) {
+  let merged = {};
+  for (const prefabKey of splitPrefabKeys(itemData?.prefab)) {
+    merged = deepMerge(merged, resolvePrefabDefinition(prefabs, prefabKey, cache));
+  }
+
+  return deepMerge(merged, itemData ?? {});
 }
 
 function findTopLevelValue(prefabs, itemData, attributeName, cache) {
   const resolved = resolvePrefabChain(prefabs, itemData, cache);
   return resolved?.[attributeName] ?? null;
+}
+
+function toIntegerOrNull(value) {
+  if (value == null) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(String(value), 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function toBooleanOrNull(value) {
+  if (value == null) {
+    return null;
+  }
+
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === '1' || normalized === 'true') {
+    return true;
+  }
+  if (normalized === '0' || normalized === 'false') {
+    return false;
+  }
+
+  return null;
+}
+
+function cloneSerializable(value) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => cloneSerializable(entry));
+  }
+
+  if (isPlainObject(value)) {
+    const cloned = {};
+    for (const [key, entry] of Object.entries(value)) {
+      cloned[key] = cloneSerializable(entry);
+    }
+    return cloned;
+  }
+
+  return value;
+}
+
+function readDefinitionAttributeValue(attributes, key) {
+  const value = attributes?.[key];
+  if (value == null) {
+    return null;
+  }
+
+  if (isPlainObject(value)) {
+    return value.value ?? null;
+  }
+
+  return value;
+}
+
+function normalizeDefinitionAttributes(attributes) {
+  if (!isPlainObject(attributes)) {
+    return null;
+  }
+
+  const normalized = {};
+  for (const [key, value] of Object.entries(attributes)) {
+    if (isPlainObject(value)) {
+      normalized[key] = {
+        attributeClass: value.attribute_class ?? null,
+        value: value.value ?? null,
+      };
+      continue;
+    }
+
+    normalized[key] = {
+      attributeClass: null,
+      value: value ?? null,
+    };
+  }
+
+  return normalized;
+}
+
+function resolveCategory(tokens, merged, categoryToken) {
+  const resolvedCategory = resolveToken(tokens, categoryToken)
+    ?? resolveToken(tokens, merged.item_type_name)
+    ?? merged.visuals?.weapon_type
+    ?? null;
+
+  if (resolvedCategory) {
+    return resolvedCategory;
+  }
+
+  if (String(merged.inv_container_and_tools ?? '').toLowerCase() === 'tool') {
+    return 'Tool';
+  }
+
+  return null;
 }
 
 function buildQualities(itemsGame, tokens) {
@@ -257,6 +369,10 @@ function buildStickerKits(itemsGame, tokens, cdnMap, raritiesByKey, imagePathInd
       rarityName: rarity?.weaponName ?? rarity?.nonweaponName ?? null,
       rarityColor: rarity?.color ?? null,
       stickerMaterial,
+      patchMaterial: stickerData.patch_material ?? null,
+      tournamentEventId: toIntegerOrNull(stickerData.tournament_event_id),
+      tournamentTeamId: toIntegerOrNull(stickerData.tournament_team_id),
+      tournamentPlayerId: toIntegerOrNull(stickerData.tournament_player_id),
       itemUrl: resolveItemUrl(cdnMap, {
         name: stickerData.name,
         image_inventory: stickerData.image_inventory,
@@ -288,15 +404,34 @@ function buildDefinitions(itemsGame, tokens, cdnMap, qualitiesByKey, raritiesByK
       defIndex,
       item_name: itemData.name,
       localizedName: resolveToken(tokens, merged.item_name) ?? titleCase(itemData.name),
-      category: resolveToken(tokens, categoryToken) ?? merged.visuals?.weapon_type ?? null,
+      category: resolveCategory(tokens, merged, categoryToken),
       qualityValue: quality?.value ?? null,
       localizedQuality: quality?.localizedName ?? null,
       rarityValue: rarity?.value ?? null,
       rarityName: rarity?.weaponName ?? rarity?.nonweaponName ?? null,
       rarityColor: rarity?.color ?? null,
       itemUrl: resolveItemUrl(cdnMap, merged, imagePathIndex),
+      itemDescription: resolveToken(tokens, merged.item_description) ?? null,
+      itemType: merged.item_type ?? null,
+      itemClass: merged.item_class ?? null,
+      prefab: merged.prefab ?? null,
       paintable: Boolean(merged.paint_data),
       image_inventory: merged.image_inventory ?? null,
+      image_inventory_volatile: merged['image_inventory^volatile'] ?? null,
+      modelPlayer: merged.model_player ?? null,
+      invContainerAndTools: merged.inv_container_and_tools ?? null,
+      firstSaleDate: merged.first_sale_date ?? null,
+      lootListName: merged.loot_list_name ?? null,
+      toolType: merged.tool?.type ?? null,
+      toolData: cloneSerializable(merged.tool ?? null),
+      capabilities: cloneSerializable(merged.capabilities ?? null),
+      associatedItems: cloneSerializable(merged.associated_items ?? null),
+      itemTags: cloneSerializable(merged.tags ?? null),
+      itemSetTag: merged.tags?.ItemSet?.tag_value ?? null,
+      supplyCrateSeries: toIntegerOrNull(readDefinitionAttributeValue(merged.attributes, 'set supply crate series')),
+      canOpenForRental: toBooleanOrNull(readDefinitionAttributeValue(merged.attributes, 'can open for rental')),
+      volatileContainer: toBooleanOrNull(readDefinitionAttributeValue(merged.attributes, 'volatile container')),
+      definitionAttributes: normalizeDefinitionAttributes(merged.attributes),
       renderKeys,
     };
 
@@ -398,11 +533,12 @@ function buildVariants(definitions, renderKeysByDefIndex, paints, cdnMap) {
   return variants;
 }
 
-function buildKeychainDefinitions(itemsGame, tokens, raritiesByKey, cdnMap, imagePathIndex) {
+function buildKeychainDefinitions(itemsGame, tokens, qualitiesByKey, raritiesByKey, cdnMap, imagePathIndex) {
   const keychainDefinitions = {};
 
   for (const [keychainId, keychainData] of Object.entries(itemsGame.keychain_definitions ?? {})) {
     const imageInventory = keychainData.image_inventory ?? null;
+    const quality = qualitiesByKey[keychainData.item_quality ?? ''] ?? null;
     const rarity = raritiesByKey[keychainData.item_rarity ?? ''] ?? null;
     if (imageInventory) {
       imagePathIndex[imageInventory] = imageInventory;
@@ -415,10 +551,16 @@ function buildKeychainDefinitions(itemsGame, tokens, raritiesByKey, cdnMap, imag
         ?? resolveToken(tokens, keychainData.item_name)
         ?? titleCase(keychainData.name),
       localizedDescription: resolveToken(tokens, keychainData.loc_description) ?? null,
+      qualityValue: quality?.value ?? null,
+      localizedQuality: quality?.localizedName ?? null,
       rarityValue: rarity?.value ?? null,
       rarityName: rarity?.weaponName ?? rarity?.nonweaponName ?? null,
       rarityColor: rarity?.color ?? null,
       image_inventory: imageInventory,
+      displaySeed: toIntegerOrNull(keychainData.display_seed),
+      keychainMaterial: keychainData.keychain_material ?? null,
+      isCommodity: toBooleanOrNull(keychainData['is commodity']),
+      itemTags: cloneSerializable(keychainData.tags ?? null),
       itemUrl: resolveItemUrl(cdnMap, {
         name: keychainData.name,
         image_inventory: keychainData.image_inventory,
@@ -464,7 +606,7 @@ function buildSchema({ itemsGameText, csgoEnglishText, itemsCdnText }) {
   } = buildDefinitions(itemsGame, tokens, cdnMap, qualities.byKey, rarities.byKey, imagePathIndex);
   const variants = buildVariants(definitions, renderKeysByDefIndex, paints, cdnMap);
   const stickerKits = buildStickerKits(itemsGame, tokens, cdnMap, rarities.byKey, imagePathIndex);
-  const keychainDefinitions = buildKeychainDefinitions(itemsGame, tokens, rarities.byKey, cdnMap, imagePathIndex);
+  const keychainDefinitions = buildKeychainDefinitions(itemsGame, tokens, qualities.byKey, rarities.byKey, cdnMap, imagePathIndex);
 
   return {
     generatedAt: new Date().toISOString(),

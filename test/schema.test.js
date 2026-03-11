@@ -148,6 +148,14 @@ const ITEMS_GAME_FIXTURE = `
       "item_type_name" "#Type_Tool"
       "item_name" "#Tool_Name"
     }
+    "weapon_case_base"
+    {
+      "item_type_name" "#Type_Container"
+    }
+    "pricing_overlay"
+    {
+      "item_rarity" "common"
+    }
   }
   "keychain_definitions"
   {
@@ -157,7 +165,18 @@ const ITEMS_GAME_FIXTURE = `
       "loc_name" "#keychain_kc_wpn_ak_jelly"
       "loc_description" "#keychain_kc_wpn_ak_jelly_desc"
       "item_rarity" "rare"
+      "item_quality" "unique"
       "image_inventory" "econ/keychains/weapon_1/kc_wpn_ak_jelly"
+      "display_seed" "777"
+      "keychain_material" "weapon_1/jelly"
+      "is commodity" "1"
+      "tags"
+      {
+        "Type"
+        {
+          "tag_value" "keychain"
+        }
+      }
     }
   }
   "items"
@@ -214,6 +233,49 @@ const ITEMS_GAME_FIXTURE = `
       "item_name" "#Sporty_Gloves"
       "item_quality" "unique"
     }
+    "6000"
+    {
+      "name" "volatile_case_test"
+      "prefab" "pricing_overlay weapon_case_base"
+      "item_name" "#Volatile_Case_Test"
+      "item_description" "#Volatile_Case_Test_Desc"
+      "loot_list_name" "lootlist_test"
+      "inv_container_and_tools" "tool"
+      "first_sale_date" "2026/03/01"
+      "image_inventory" "econ/weapon_cases/volatile_case_test_closed"
+      "image_inventory^volatile" "econ/weapon_cases/volatile_case_test_open"
+      "model_player" "models/props/test_case.vmdl"
+      "tool"
+      {
+        "type" "volatile_case_tool"
+        "use_string" "#UseItem"
+      }
+      "capabilities"
+      {
+        "usable_gc" "1"
+      }
+      "associated_items"
+      {
+        "item" "12345"
+      }
+      "tags"
+      {
+        "ItemSet"
+        {
+          "tag_value" "set_test"
+        }
+      }
+      "attributes"
+      {
+        "set supply crate series"
+        {
+          "attribute_class" "supply_crate_series"
+          "value" "273"
+        }
+        "can open for rental" "1"
+        "volatile container" "1"
+      }
+    }
   }
   "paint_kits"
   {
@@ -253,6 +315,10 @@ const ITEMS_GAME_FIXTURE = `
       "item_name" "#Sticker_Test"
       "image_inventory" "econ/stickers/test_sticker"
       "sticker_material" "standard/test_sticker"
+      "patch_material" "standard/test_patch"
+      "tournament_event_id" "99"
+      "tournament_team_id" "88"
+      "tournament_player_id" "77"
       "item_rarity" "common"
     }
   }
@@ -277,6 +343,7 @@ const ENGLISH_FIXTURE = `
     "Type_Collectible" "Collectible"
     "Type_Key" "Key"
     "Type_Tool" "Tool"
+    "Type_Container" "Container"
     "SFUI_WPNHUD_Test" "Test Pistol"
     "Tool_Name" "Tool"
     "CSGO_Tool_Casket_Tag" "Storage Unit"
@@ -290,6 +357,8 @@ const ENGLISH_FIXTURE = `
     "Coin_Five_Year" "5 Year Veteran Coin"
     "Weapon_Case_Key" "CS:GO Case Key"
     "Sporty_Gloves" "Sport Gloves"
+    "Volatile_Case_Test" "Sealed Test Terminal"
+    "Volatile_Case_Test_Desc" "A volatile test container"
     "keychain_kc_wpn_ak_jelly" "Die-cast AK"
     "keychain_kc_wpn_ak_jelly_desc" "Charm description"
     "Attrib_KeychainSeed" "Charm Template: %s1"
@@ -341,10 +410,28 @@ test('buildSchema resolves paint variants and keeps image_inventory metadata for
   assert.equal(schema.definitionsByDefIndex['1203'].itemUrl, null);
   assert.equal(schema.imagePathIndex['econ/status_icons/5yearcoin'], 'econ/status_icons/5yearcoin');
   assert.equal(schema.imagePathIndex['econ/tools/weapon_case_key'], 'econ/tools/weapon_case_key');
+  assert.equal(schema.definitionsByDefIndex['6000'].localizedName, 'Sealed Test Terminal');
+  assert.equal(schema.definitionsByDefIndex['6000'].category, 'Container');
+  assert.equal(schema.definitionsByDefIndex['6000'].itemDescription, 'A volatile test container');
+  assert.equal(schema.definitionsByDefIndex['6000'].lootListName, 'lootlist_test');
+  assert.equal(schema.definitionsByDefIndex['6000'].supplyCrateSeries, 273);
+  assert.equal(schema.definitionsByDefIndex['6000'].canOpenForRental, true);
+  assert.equal(schema.definitionsByDefIndex['6000'].volatileContainer, true);
+  assert.equal(schema.definitionsByDefIndex['6000'].toolType, 'volatile_case_tool');
+  assert.equal(schema.definitionsByDefIndex['6000'].itemSetTag, 'set_test');
+  assert.equal(schema.definitionsByDefIndex['6000'].image_inventory_volatile, 'econ/weapon_cases/volatile_case_test_open');
   assert.equal(schema.keychainDefinitionsById['18'].localizedName, 'Die-cast AK');
   assert.equal(schema.keychainDefinitionsById['18'].itemUrl, null);
+  assert.equal(schema.keychainDefinitionsById['18'].displaySeed, 777);
+  assert.equal(schema.keychainDefinitionsById['18'].keychainMaterial, 'weapon_1/jelly');
+  assert.equal(schema.keychainDefinitionsById['18'].qualityValue, '4');
+  assert.equal(schema.keychainDefinitionsById['18'].isCommodity, true);
   assert.equal(schema.attributeDefsById['306'].attributeClass, 'keychain_slot_seed');
   assert.equal(schema.stickerKitsById['228'].stickerMaterial, 'standard/test_sticker');
+  assert.equal(schema.stickerKitsById['228'].patchMaterial, 'standard/test_patch');
+  assert.equal(schema.stickerKitsById['228'].tournamentEventId, 99);
+  assert.equal(schema.stickerKitsById['228'].tournamentTeamId, 88);
+  assert.equal(schema.stickerKitsById['228'].tournamentPlayerId, 77);
   assert.deepEqual(schema.renderKeysByDefIndex['5030'], ['sporty_gloves']);
   assert.equal(schema.variantsByKey['[1001]5030'].localizedName, 'Sport Gloves | Nocts');
   assert.equal(schema.variantsByKey['[1001]5030'].itemUrl, 'https://example.com/gloves.png');
@@ -376,6 +463,17 @@ test('resolver returns enriched API shape with stickers and attached keychains',
   const item = resolver.formatItem({
     id: '123',
     def_index: 1,
+    quantity: 2,
+    level: 5,
+    flags: 9,
+    in_use: true,
+    style: 3,
+    custom_desc: 'Test custom description',
+    position: 42,
+    kill_eater_score_type: 1,
+    quest_id: 77,
+    inventory: 90001,
+    interior_item: { id: '999' },
     paint_index: 44,
     quality: 9,
     rarity: 5,
@@ -383,7 +481,7 @@ test('resolver returns enriched API shape with stickers and attached keychains',
     paint_seed: 777,
     kill_eater_value: 12,
     casket_id: '9001',
-    stickers: [{ slot: 0, sticker_id: 228, wear: 0.1 }],
+    stickers: [{ slot: 0, sticker_id: 228, wear: 0.1, tint_id: 5 }],
     equipped_state: [{ new_class: 2 }, { new_class: 3 }],
     attribute: [
       { def_index: 299, value_bytes: uint32Bytes(18) },
@@ -418,6 +516,9 @@ test('resolver returns enriched API shape with stickers and attached keychains',
   assert.equal(item.isMoveable, true);
   assert.equal(item.stickers[0].localizedName, 'Test Sticker');
   assert.equal(item.stickers[0].itemUrl, buildEconomyImageUrl('sticker_icon_hash'));
+  assert.equal(item.stickers[0].tintId, 5);
+  assert.equal(item.stickers[0].tournamentEventId, 99);
+  assert.equal(item.stickers[0].patchMaterial, 'standard/test_patch');
   assert.equal(item.hasKeychain, true);
   assert.equal(item.keychainSeed, 93803);
   assert.equal(item.highlightReelLink, 22);
@@ -426,6 +527,21 @@ test('resolver returns enriched API shape with stickers and attached keychains',
   assert.equal(item.keychains[0].offsetX, 0.125);
   assert.equal(item.keychains[0].offsetY, -0.25);
   assert.equal(item.keychains[0].offsetZ, 0.375);
+  assert.equal(item.keychains[0].displaySeed, 777);
+  assert.equal(item.keychains[0].keychainMaterial, 'weapon_1/jelly');
+  assert.equal(item.keychains[0].qualityValue, '4');
+  assert.equal(item.keychains[0].isCommodity, true);
+  assert.equal(item.quantity, 2);
+  assert.equal(item.level, 5);
+  assert.equal(item.flags, 9);
+  assert.equal(item.inUse, true);
+  assert.equal(item.style, 3);
+  assert.equal(item.customDescription, 'Test custom description');
+  assert.equal(item.inventoryPosition, 42);
+  assert.equal(item.killEaterScoreType, 1);
+  assert.equal(item.questId, 77);
+  assert.equal(item.itemDetails.inventoryValue, 90001);
+  assert.equal(item.itemDetails.interiorItemId, '999');
 });
 
 test('resolver resolves standalone charms, escrow, rental, and sticker slab keychain ids', () => {
@@ -520,6 +636,52 @@ test('resolver builds painted market names even when cdn variant image is missin
 
   assert.equal(item.localizedName, 'Test Pistol | Blue Laminate');
   assert.equal(item.marketHashName, 'Test Pistol | Blue Laminate (Minimal Wear)');
+});
+
+test('resolver prefers Steam asset image over base definition image when variant art is missing', () => {
+  const schema = buildTestSchema();
+  const resolver = createSchemaResolver(schema);
+  const assetDescriptionById = new Map([
+    ['777', {
+      marketHashName: 'Test Pistol | Blue Laminate (Minimal Wear)',
+      localizedName: 'Test Pistol | Blue Laminate',
+      itemUrl: buildEconomyImageUrl('asset_image_hash'),
+      tags: [{ category_name: 'Rarity', name: 'Covert', color: 'eb4b4b' }],
+    }],
+  ]);
+
+  const item = resolver.formatItem({
+    id: '777',
+    def_index: 1,
+    paint_index: 45,
+    quality: 4,
+    paint_wear: 0.11,
+  }, {
+    assetDescriptionById,
+  });
+
+  assert.equal(item.itemUrl, buildEconomyImageUrl('asset_image_hash'));
+  assert.equal(item.imageUrl, buildEconomyImageUrl('asset_image_hash'));
+});
+
+test('resolver exposes preserved definition metadata for container-like items', () => {
+  const schema = buildTestSchema();
+  const resolver = createSchemaResolver(schema);
+
+  const item = resolver.formatItem({
+    id: '600001',
+    def_index: 6000,
+    quality: 4,
+  });
+
+  assert.equal(item.category, 'Container');
+  assert.equal(item.definitionMetadata.lootListName, 'lootlist_test');
+  assert.equal(item.definitionMetadata.supplyCrateSeries, 273);
+  assert.equal(item.definitionMetadata.canOpenForRental, true);
+  assert.equal(item.definitionMetadata.volatileContainer, true);
+  assert.equal(item.definitionMetadata.toolType, 'volatile_case_tool');
+  assert.equal(item.definitionMetadata.imageInventoryVolatile, 'econ/weapon_cases/volatile_case_test_open');
+  assert.equal(item.itemDetails.definition.itemSetTag, 'set_test');
 });
 
 test('committed schema snapshot exists', () => {

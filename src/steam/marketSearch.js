@@ -1,4 +1,5 @@
 const https = require('https');
+const zlib = require('zlib');
 
 const MARKET_SEARCH_ENDPOINT = 'https://steamcommunity.com/market/search/render/';
 const APP_ID = 730;
@@ -91,9 +92,22 @@ function parseRarityName(typeLabel) {
   return type.slice(0, index);
 }
 
-function requestJsonOverHttps(url, headers, timeoutMs = DEFAULT_TIMEOUT_MS) {
+function requestJsonOverHttps(url, headers, timeoutMs = DEFAULT_TIMEOUT_MS, redirects = 3) {
   return new Promise((resolve, reject) => {
     const request = https.get(url, { headers }, (response) => {
+      if (
+        response.statusCode
+        && response.statusCode >= 300
+        && response.statusCode < 400
+        && response.headers.location
+        && redirects > 0
+      ) {
+        const redirectUrl = new URL(response.headers.location, url).toString();
+        response.resume();
+        resolve(requestJsonOverHttps(redirectUrl, headers, timeoutMs, redirects - 1));
+        return;
+      }
+
       if (response.statusCode !== 200) {
         const error = new Error(`Market search failed (${response.statusCode})`);
         error.statusCode = response.statusCode;
@@ -102,12 +116,14 @@ function requestJsonOverHttps(url, headers, timeoutMs = DEFAULT_TIMEOUT_MS) {
         return;
       }
 
-      let raw = '';
-      response.setEncoding('utf8');
+      const chunks = [];
       response.on('data', (chunk) => {
-        raw += chunk;
+        chunks.push(Buffer.from(chunk));
       });
       response.on('end', () => {
+        const rawBuffer = Buffer.concat(chunks);
+        const raw = decodeBody(response.headers['content-encoding'], rawBuffer);
+
         try {
           resolve(JSON.parse(raw));
         } catch (error) {
@@ -121,6 +137,29 @@ function requestJsonOverHttps(url, headers, timeoutMs = DEFAULT_TIMEOUT_MS) {
     });
     request.on('error', reject);
   });
+}
+
+function decodeBody(encoding, buffer) {
+  if (!buffer || buffer.length === 0) {
+    return '';
+  }
+
+  const value = String(encoding ?? '').toLowerCase();
+  try {
+    if (value.includes('gzip')) {
+      return zlib.gunzipSync(buffer).toString('utf8');
+    }
+    if (value.includes('deflate')) {
+      return zlib.inflateSync(buffer).toString('utf8');
+    }
+    if (value.includes('br') && typeof zlib.brotliDecompressSync === 'function') {
+      return zlib.brotliDecompressSync(buffer).toString('utf8');
+    }
+  } catch {
+    return buffer.toString('utf8');
+  }
+
+  return buffer.toString('utf8');
 }
 
 module.exports = {
