@@ -8,11 +8,15 @@ const {
   fetchAssetDescriptionsByAssetId,
 } = require('./assetDescriptions');
 const { fetchMarketDescriptionByHashName } = require('./marketSearch');
+const { createMarketCache } = require('./marketCache');
 
 const ASSET_DESCRIPTION_CACHE_TTL_MS = 2 * 60 * 1000;
 const WEB_SESSION_TIMEOUT_MS = 15000;
-const MARKET_LOOKUP_LIMIT = 80;
-const MARKET_LOOKUP_CONCURRENCY = 4;
+const MARKET_LOOKUP_LIMIT = Number(process.env.CS2_MARKET_LOOKUP_LIMIT ?? 30) || 30;
+const MARKET_LOOKUP_CONCURRENCY = Number(process.env.CS2_MARKET_LOOKUP_CONCURRENCY ?? 1) || 1;
+const MARKET_REQUEST_MIN_INTERVAL_MS = Number(process.env.CS2_MARKET_REQUEST_MIN_INTERVAL_MS ?? 1250) || 1250;
+const MARKET_BACKOFF_BASE_MS = Number(process.env.CS2_MARKET_BACKOFF_BASE_MS ?? 30000) || 30000;
+const MARKET_BACKOFF_MAX_MS = Number(process.env.CS2_MARKET_BACKOFF_MAX_MS ?? 10 * 60 * 1000) || 10 * 60 * 1000;
 
 class SteamClient {
   constructor() {
@@ -38,6 +42,9 @@ class SteamClient {
     this._assetDescriptionsPromise = null;
     this._marketDescriptionsByHash = new Map();
     this._marketDescriptionPromisesByHash = new Map();
+    this._marketCache = createMarketCache();
+    this._marketNextAllowedAt = 0;
+    this._marketBackoffMs = 0;
 
     this._setupEventHandlers();
   }
@@ -53,6 +60,8 @@ class SteamClient {
       this._invalidateAssetDescriptions();
       this._marketDescriptionsByHash = new Map();
       this._marketDescriptionPromisesByHash = new Map();
+      this._marketNextAllowedAt = 0;
+      this._marketBackoffMs = 0;
       this._refreshWebSession().catch((error) => {
         console.warn('[steam] failed to initialize web session:', error.message);
       });
@@ -271,7 +280,15 @@ class SteamClient {
         .filter(Boolean)
     )];
     const target = unique.slice(0, limit);
-    const missing = target.filter((hashName) => !this._marketDescriptionsByHash.has(hashName));
+
+    // Seed in-memory cache with on-disk values so we don't re-hit Steam Market across runs.
+    for (const hashName of target) {
+      if (!this._marketDescriptionsByHash.has(hashName) && this._marketCache.has(hashName)) {
+        this._marketDescriptionsByHash.set(hashName, this._marketCache.get(hashName) ?? null);
+      }
+    }
+
+    const missing = target.filter((hashName) => !this._marketDescriptionsByHash.has(hashName) && !this._marketCache.has(hashName));
 
     if (missing.length > 0) {
       await this._loadMarketDescriptions(missing);
@@ -313,11 +330,20 @@ class SteamClient {
 
           const lookupPromise = (async () => {
             try {
+              await this._waitForMarketRateLimit();
               const description = await fetchMarketDescriptionByHashName(hashName);
               this._marketDescriptionsByHash.set(hashName, description ?? null);
+              this._marketCache.set(hashName, description ?? null);
+              this._marketBackoffMs = 0;
             } catch (error) {
-              console.warn('[market] failed to resolve hash', hashName, error.message);
+              if (error?.statusCode === 429) {
+                this._applyMarketBackoff();
+                console.warn('[market] rate limited (429); backing off', Math.round(this._marketBackoffMs / 1000), 's');
+              } else {
+                console.warn('[market] failed to resolve hash', hashName, error.message);
+              }
               this._marketDescriptionsByHash.set(hashName, null);
+              this._marketCache.set(hashName, null);
             } finally {
               this._marketDescriptionPromisesByHash.delete(hashName);
             }
@@ -330,6 +356,21 @@ class SteamClient {
     }
 
     await Promise.all(workers);
+  }
+
+  async _waitForMarketRateLimit() {
+    const now = Date.now();
+    const delayMs = Math.max(0, this._marketNextAllowedAt - now);
+    if (delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+    this._marketNextAllowedAt = Date.now() + MARKET_REQUEST_MIN_INTERVAL_MS;
+  }
+
+  _applyMarketBackoff() {
+    const next = this._marketBackoffMs > 0 ? this._marketBackoffMs * 2 : MARKET_BACKOFF_BASE_MS;
+    this._marketBackoffMs = Math.min(MARKET_BACKOFF_MAX_MS, next);
+    this._marketNextAllowedAt = Math.max(this._marketNextAllowedAt, Date.now() + this._marketBackoffMs);
   }
 
   async _loadAssetDescriptions() {

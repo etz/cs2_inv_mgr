@@ -21,21 +21,12 @@ async function getInventory(steamClient) {
 
   const inventoryById = buildInventoryMap(csgo.inventory);
   const assetDescriptionById = await steamClient.getAssetDescriptions();
-  const strictWebInventoryMatch = process.env.CS2_STRICT_WEB_INVENTORY_MATCH !== '0';
-  const hasWebInventoryData = assetDescriptionById.size > 0;
   const keychainDescriptionByName = steamClient.buildKeychainDescriptionByName(assetDescriptionById);
   const stickerDescriptionByName = steamClient.buildStickerDescriptionByName(assetDescriptionById);
   const storageUnits = [];
   const items = [];
-  let skippedGcOnlyItems = 0;
 
   for (const gcItem of csgo.inventory) {
-    const hasAssetDescription = assetDescriptionById.has(String(gcItem.id));
-    if (strictWebInventoryMatch && hasWebInventoryData && !hasAssetDescription) {
-      skippedGcOnlyItems += 1;
-      continue;
-    }
-
     if (gcItem.def_index === STORAGE_UNIT_DEF_INDEX) {
       storageUnits.push(formatStorageUnit(gcItem, {
         inventoryById,
@@ -65,9 +56,6 @@ async function getInventory(steamClient) {
   }
 
   const inCasketCount = (csgo.inventory ?? []).filter((item) => Boolean(item.casket_id)).length;
-  if (skippedGcOnlyItems > 0) {
-    console.log(`[inventory] skipped ${skippedGcOnlyItems} GC-only item(s) not present in Steam web inventory`);
-  }
   console.log(
     `[inventory] returning ${items.length} item(s) (${inCasketCount} in storage units), ${storageUnits.length} storage unit(s)`
   );

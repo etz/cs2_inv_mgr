@@ -293,6 +293,18 @@ a:hover { text-decoration: underline; }
    minimum size is min-content (full grid height) and overflow-y never fires. */
 .inv-col-grid { overflow-y: auto; flex: 1; min-height: 0; }
 
+/* Two grids share the viewport; use smaller cards to avoid horizontal squeeze. */
+.casket-panel .inventory-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
+.casket-panel .item-info { padding: 5px 7px 7px; }
+.casket-panel .item-name { font-size: 10px; }
+
+@media (max-width: 900px) {
+  .casket-body { flex-direction: column; }
+  .casket-col { border-right: none; border-bottom: 1px solid var(--border); padding: 12px; }
+  .casket-col:last-child { border-bottom: none; }
+  .casket-panel .inventory-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+}
+
 /* ── Modal ───────────────────────────────────────────────────────────────── */
 .modal-overlay {
   position: fixed; inset: 0; z-index: 1000;

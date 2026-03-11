@@ -76,10 +76,18 @@ function createSchemaResolver(schema) {
       ?? resolveDescriptionRarityColor(assetDescription)
       ?? rarity?.color
       ?? '#b0c3d9';
-    const localizedName = display.localizedName
+    let localizedName = display.localizedName
       ?? resolvePaintedLocalizedName(definition, variant, paint)
       ?? assetDescription?.localizedName
       ?? `Item #${gcItem.def_index}`;
+
+    if (category === 'Graffiti') {
+      const graffitiPattern = stickers[0]?.localizedName ?? null;
+      if (graffitiPattern && !localizedName.includes('|')) {
+        localizedName = `${localizedName} | ${graffitiPattern}`;
+      }
+    }
+
     const marketHashName = display.marketHashName ?? assetDescription?.marketHashName ?? buildMarketHashName({
       localizedName,
       localizedQuality,
@@ -92,6 +100,7 @@ function createSchemaResolver(schema) {
       ?? variant?.itemUrl
       ?? assetDescription?.itemUrl
       ?? definition?.itemUrl
+      ?? (category === 'Graffiti' ? stickers[0]?.itemUrl ?? null : null)
       ?? null;
     const definitionMetadata = buildDefinitionMetadata(definition);
     const quantityValue = normaliseNumberish(gcItem.quantity);
