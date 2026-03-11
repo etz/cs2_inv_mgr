@@ -1,4 +1,4 @@
-const GlobalOffensive = require('globaloffensive');
+const GlobalOffensive = require('node-cs2');
 const { formatItem, STORAGE_UNIT_DEF_INDEX } = require('../utils/itemFormatter');
 const {
   applyMarketDescriptions,

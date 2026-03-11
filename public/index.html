@@ -94,6 +94,7 @@
       <div class="header-user">
         <span id="header-username"></span>
         <span id="gc-indicator" class="gc-dot connected" title="Connected to Game Coordinator"></span>
+        <button id="btn-open-armory" class="btn btn-secondary">Armory</button>
         <button id="btn-logout" class="btn btn-ghost">Logout</button>
       </div>
     </header>
@@ -151,6 +152,32 @@
           <div class="loading-msg">Loading inventory...</div>
         </div>
       </main>
+    </div>
+  </div>
+
+  <!-- Armory panel -->
+  <div id="armory-panel" class="armory-panel hidden">
+    <div class="armory-header">
+      <div>
+        <h2>Armory Shop</h2>
+        <p id="armory-status" class="armory-status hidden"></p>
+      </div>
+      <div class="armory-header-actions">
+        <span id="armory-balance" class="armory-balance">0 stars</span>
+        <button id="btn-close-armory" class="btn btn-ghost">&#10005; Close</button>
+      </div>
+    </div>
+
+    <div class="armory-body">
+      <section>
+        <h3 class="armory-section-title">Current Rotation</h3>
+        <div id="armory-offers" class="armory-offers"></div>
+      </section>
+
+      <section>
+        <h3 class="armory-section-title">Data Source</h3>
+        <div id="armory-collections" class="armory-collections"></div>
+      </section>
     </div>
   </div>
 
