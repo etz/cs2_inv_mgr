@@ -1,5 +1,9 @@
 const GlobalOffensive = require('globaloffensive');
 const { formatItem, STORAGE_UNIT_DEF_INDEX } = require('../utils/itemFormatter');
+const {
+  applyMarketDescriptions,
+  collectMissingMarketHashNames,
+} = require('./marketFallback');
 
 const OPERATION_TIMEOUT_MS = 20000;
 const OPERATION_DELAY_MS = 1000;
@@ -63,9 +67,9 @@ function waitForNotification(csgo, expectedType, timeoutMs = OPERATION_TIMEOUT_M
 // ── Casket Operations ────────────────────────────────────────────────────────
 
 /**
- * Load contents of a storage unit. Returns formatted items.
- * Note: items inside storage units are NOT available in the Steam Community
- * inventory, so we can only show GC data (no images/names from community API).
+ * Load contents of a storage unit and format with GC + schema metadata.
+ * If Steam inventory descriptions are available, we also apply per-asset
+ * image/name fallbacks for better non-skin item coverage.
  */
 async function getCasketContents(steamClient, casketId) {
   const { csgo } = steamClient;
@@ -76,16 +80,31 @@ async function getCasketContents(steamClient, casketId) {
   );
   if (!casket) throw new Error('Storage unit not found in inventory');
 
-  // Items inside storage units ARE present in the Steam Community inventory
-  // (they're still economy items; the casket relationship is a GC-layer concept).
-  // Use the cached community map from the last inventory fetch.
-  const communityMap = steamClient._communityMap ?? new Map();
+  const inventoryById = new Map(
+    (csgo.inventory ?? []).map((item) => [String(item.id), item])
+  );
+  const assetDescriptionById = await steamClient.getAssetDescriptions();
+  const keychainDescriptionByName = steamClient.buildKeychainDescriptionByName(assetDescriptionById);
+  const stickerDescriptionByName = steamClient.buildStickerDescriptionByName(assetDescriptionById);
 
   return new Promise((resolve, reject) => {
     csgo.getCasketContents(casket.id, (err, items) => {
       if (err) return reject(err);
-      resolve(items.map(item => formatItem(item, communityMap.get(item.id.toString()) ?? null)));
+      resolve(items.map((item) => formatItem(item, {
+        inventoryById,
+        assetDescriptionById,
+        keychainDescriptionByName,
+        stickerDescriptionByName,
+      })));
     });
+  }).then(async (formattedItems) => {
+    const missingHashNames = collectMissingMarketHashNames(formattedItems);
+    if (missingHashNames.length > 0) {
+      const marketDescriptions = await steamClient.getMarketDescriptionsByHash(missingHashNames);
+      applyMarketDescriptions(formattedItems, marketDescriptions);
+    }
+
+    return formattedItems;
   });
 }
 

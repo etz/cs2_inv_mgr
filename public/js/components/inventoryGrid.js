@@ -45,7 +45,7 @@ function renderStorageUnits(storageUnits, onOpenCasket) {
   }
 }
 
-export function renderItems(items, containerSelector = '#inventory-grid') {
+export function renderItems(items, containerSelector = '#inventory-grid', onItemClick = null) {
   const grid = document.querySelector(containerSelector);
   grid.innerHTML = '';
 
@@ -56,7 +56,7 @@ export function renderItems(items, containerSelector = '#inventory-grid') {
 
   const frag = document.createDocumentFragment();
   for (const item of items) {
-    frag.appendChild(createItemCard(item, null));
+    frag.appendChild(createItemCard(item, onItemClick));
   }
   grid.appendChild(frag);
 }
