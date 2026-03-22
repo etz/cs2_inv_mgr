@@ -17,6 +17,7 @@
     "express-session": "^1.18.0",
     "globaloffensive": "^3.2.0",
     "helmet": "^7.1.0",
+    "node-cs2": "^2.2.2",
     "qrcode": "^1.5.4",
     "steam-session": "^1.7.3",
     "steam-user": "^5.2.0",

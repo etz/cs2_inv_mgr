@@ -8,6 +8,7 @@ const path = require('path');
 const authRoutes = require('./routes/auth');
 const inventoryRoutes = require('./routes/inventory');
 const casketRoutes = require('./routes/casket');
+const armoryRoutes = require('./routes/armory');
 const errorHandler = require('./middleware/errorHandler');
 const SteamClient = require('./steam/SteamClient');
 
@@ -59,6 +60,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/api/auth', authRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/caskets', casketRoutes);
+app.use('/api/armory', armoryRoutes);
 
 // SPA fallback
 app.get('*', (req, res) => {
